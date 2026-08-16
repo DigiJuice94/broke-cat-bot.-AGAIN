@@ -8,13 +8,13 @@ import { log } from "./log.ts";
 const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 
 async function main(){
-  const wallet=new WalletService(),birdeye=new Birdeye(),jupiter=new Jupiter(wallet),trader=new Trader(wallet,birdeye,jupiter);
+  const wallet=new WalletService(),birdeye=new Birdeye(),jupiter=new Jupiter(wallet),trader=new Trader(wallet,jupiter);
   const scanner=new Scanner(birdeye,jupiter,c=>trader.buy(c));
-  log.info("🐱 BROKE CAT BOT v1.3.3 — BUY CONTRACT ADDRESS");
+  log.info("🐱 BROKE CAT BOT v1.3.5 — CU SAVER");
   log.info(`Mode: ${config.liveTrading?"🔴 LIVE":"🟡 PAPER / SCAN"}`); log.info(`Wallet: ${wallet.address??"NOT CONFIGURED"}`);
   log.info(`Observation: ${config.minObservationMs/1000}-${config.maxObservationMs/1000}s | Buy score ≥${config.buyScore} | Data ≥${config.minDataConfidence}%`);
-  log.info(`Data stack: DEX Screener batch + Birdeye queued/cache + Jupiter finalists`);
-  log.info(`Birdeye pacing: ${config.birdeyeMinIntervalMs}ms | deep top ${config.birdeyeDeepCandidates} | routes top ${config.routeDeepCandidates}`);
+  log.info(`Data stack: DEX Screener discovery/watch + Birdeye scarce finalist checks + Jupiter execution`);
+  log.info(`Birdeye CU Saver: new ${Math.round(config.birdeyeNewIntervalMs/60000)}m | trending ${Math.round(config.birdeyeTrendingIntervalMs/60000)}m | deep top ${config.birdeyeDeepCandidates} only at score ≥${config.birdeyeDeepMinScore}`);
   log.info(`Sizing: dynamic, minimum $${config.minPositionUsd}, NO MAX POSITION CAP | SOL reserve ${config.solFeeReserve}`);
   if(!config.birdeyeApiKey)log.warn("BIRDEYE_API_KEY missing — Birdeye discovery/deep enrichment unavailable.");
   if(!config.jupiterApiKey)log.warn("JUPITER_API_KEY missing — route verification/trading unavailable.");

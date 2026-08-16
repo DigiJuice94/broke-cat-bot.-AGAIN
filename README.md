@@ -1,119 +1,53 @@
-# v1.3.3 Buy Contract Address
+# Broke Cat Bot v1.3.5 — CU Saver
 
-Every PAPER BUY and live BOUGHT log now prints the exact Solana token mint/contract address. Copy that address into DEX Screener, Birdeye, Axiom, Jupiter, or a Solana explorer to find the exact token. No scoring, scanner, sizing, or sell logic was changed.
+This update fixes the Birdeye Compute Unit drain without making Birdeye disappear from the strategy.
 
-## v1.3.2 Sell Status
-- Successful completed exits log `💰 SOLD`.
-- Failed exits log `⚠️ SELL FAILED`.
-- Trading/scoring logic otherwise unchanged from v1.3.
+## New data flow
 
-# Broke Cat Bot v1.3 — Simple Efficient
+**DEX Screener (always on)** → discover attention signals + bulk price/liquidity/volume/buys/sells → observe acceleration → **Birdeye only for scarce high-value checks** → Jupiter route → BUY / NO BUY.
 
-v1.3 removes Helius from the active scanner and scoring path. The bot now focuses on a simple pipeline:
+### What changed
 
-**Discover → DEX Screener bulk enrichment → Birdeye deep checks → observe acceleration → Jupiter finalist route check → BUY / NO BUY**
+- DEX Screener latest token profiles + latest/top boosts are now the continuous no-key discovery layer.
+- DEX Screener continues to bulk-enrich up to 30 watchlist token addresses per request.
+- Birdeye New Listings is supplemental and defaults to once every 90 minutes.
+- Birdeye Trending defaults to once every 6 hours.
+- Birdeye Meme List is disabled by default because it costs extra CUs and overlaps with our other discovery.
+- Birdeye Token Overview only runs on the top 2 candidates **after** their DEX-built score reaches 65+.
+- Birdeye overview cache increased to 2 minutes.
+- A Birdeye `Compute units usage limit exceeded` response triggers a 6-hour Birdeye cooldown. The bot keeps scanning with DEX Screener instead of repeatedly throwing 400 errors.
+- Open-position price monitoring moved from Birdeye to DEX Screener. This removes repeated Birdeye overview calls while a trade is held.
+- SOL/USD used for position sizing and P/L is now read from a high-liquidity Solana SOL/USDC DEX Screener pair and cached for 60 seconds.
+- ntfy phone alerts, contract-address buy logs, current-trade heartbeat, score emojis, paper trades, and sell statuses remain.
 
-## Data sources
+## Why this saves so many CUs
 
-- **DEX Screener:** efficient bulk price, liquidity, volume, price change, buys/sells.
-- **Birdeye:** discovery/trending plus deeper market/holder data for prioritized candidates.
-- **Axiom/Fomo adapters:** optional trending-priority sources when URLs/API access are available.
-- **Jupiter:** route verification and swap execution only.
-- **Helius:** removed. No Helius key is required.
-
-## Score display
-
-Railway logs now show a visual score band:
-
-- 🔴 0–49 weak
-- 🟠 50–64 watch
-- 🟡 65–77 developing
-- 🟢 78–89 buy-quality
-- 🔥 90–100 elite runner
-
-Example:
-
-`[SCAN] CAT ($CAT) | Price:$0.000021 | Score:🟢 84/100 | Data:92% | ⏳ DEVELOPING`
-
-## Scoring philosophy
-
-The score is based on market strength and what changes while the bot is watching:
-
-- buy/sell pressure
-- price momentum
-- volume level
-- buy acceleration between snapshots
-- volume acceleration between snapshots
-- price acceleration between snapshots
-- holder growth when available
-- trending-source priority
-- holder concentration and bundle-risk deductions
-
-**Data % is confidence/completeness, not the score.** A coin can have 95% data and still deserve a low score.
+The prior version could repeatedly call Birdeye discovery and Token Overview while scanning and while monitoring positions. v1.3.5 makes DEX Screener the heartbeat and Birdeye a scarce premium check.
 
 ## Railway
 
-Keep `LIVE_TRADING=false` until logs and route behavior are verified.
-
-Required/primary variables:
+No new API key is required. Existing variables still work. These CU Saver values are optional because these are already the defaults:
 
 ```env
-BIRDEYE_API_KEY=
-JUPITER_API_KEY=
-BS58_PRIVATE_KEY=
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+DEX_DISCOVERY_INTERVAL_MS=30000
+DEX_CACHE_MS=8000
+BIRDEYE_SNAPSHOT_CACHE_MS=120000
+BIRDEYE_DEEP_CANDIDATES=2
+BIRDEYE_DEEP_MIN_SCORE=65
+BIRDEYE_NEW_INTERVAL_MS=5400000
+BIRDEYE_TRENDING_INTERVAL_MS=21600000
+BIRDEYE_MEME_INTERVAL_MS=0
+BIRDEYE_CU_COOLDOWN_MS=21600000
+```
+
+For testing keep:
+
+```env
 LIVE_TRADING=false
 ```
 
-Useful tuning defaults:
+Your existing `BIRDEYE_API_KEY` can remain in Railway. If the current Birdeye monthly quota is already exhausted, v1.3.5 will automatically fall back to DEX Screener discovery/watch until Birdeye becomes usable again.
 
-```env
-BIRDEYE_MIN_INTERVAL_MS=1100
-BIRDEYE_SNAPSHOT_CACHE_MS=30000
-BIRDEYE_DEEP_CANDIDATES=6
-DEX_CACHE_MS=8000
-DEX_TIMEOUT_MS=6000
-ROUTE_DEEP_CANDIDATES=4
-BUNDLE_DEEP_CANDIDATES=3
-DISCOVERY_INTERVAL_MS=15000
-OBSERVATION_TICK_MS=10000
-MIN_OBSERVATION_MS=30000
-MAX_OBSERVATION_MS=90000
-MAX_ACTIVE_CANDIDATES=20
-PROMOTE_SCORE=55
-BUY_SCORE=78
-MIN_DATA_CONFIDENCE=70
-MIN_POSITION_USD=2
-SOL_FEE_RESERVE=0.015
-REQUIRE_SELL_ROUTE=true
-```
+## Important
 
-Old `HELIUS_*` Railway variables may be deleted, but leaving them there will not affect v1.3 because the code no longer reads them.
-
-
-## v1.3.2 Current Trade
-- Adds `[CURRENT TRADE]` heartbeat for every open position.
-- Shows HOLDING/PAPER HOLDING, entry, current price, original position size, estimated current value, P/L, peak P/L, time held, and score at buy.
-- Shows `[OPEN POSITIONS] 0 | 💤 Waiting for runner` when idle.
-- Paper buys now create simulated positions and run through the same TP/SL/trailing/time exit logic, ending with `💰 PAPER SOLD`.
-- Successful live exits remain `💰 SOLD`; failed live exits remain `⚠️ SELL FAILED`.
-
-## v1.3.4 — Free phone alerts with ntfy
-
-Broke Cat can now send free push notifications to your phone for important trade events without Twilio/SMS charges.
-
-Notifications:
-- 🐱 BUY / PAPER BUY
-- 💰 SOLD / PAPER SOLD
-- ⚠️ SELL FAILED
-
-Railway variables:
-
-```env
-NTFY_SERVER=https://ntfy.sh
-NTFY_TOPIC=use-a-long-random-private-topic-name
-```
-
-Install the ntfy mobile app and subscribe to the exact same topic. `NTFY_TOKEN` is optional and only needed for an authenticated/self-hosted ntfy server.
-
-Alert delivery is intentionally non-blocking. If ntfy is unavailable, trading/scanning continues normally and Railway logs a warning.
+DEX Screener profiles/boosts are **attention signals**, not automatic buy signals. They only put coins into the candidate pool. The bot still requires its own runner score, data confidence, observation window, and Jupiter route checks before buying.

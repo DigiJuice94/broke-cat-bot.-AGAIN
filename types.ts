@@ -1,4 +1,4 @@
-export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "axiom" | "fomo";
+export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "dex-profile" | "dex-boost" | "dex-boost-top" | "axiom" | "fomo";
 
 export interface DiscoveredToken {
   address: string;

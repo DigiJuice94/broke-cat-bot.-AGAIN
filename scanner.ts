@@ -11,6 +11,10 @@ import { DexScreener } from "./dexscreener.ts";
 export class Scanner {
   readonly candidates = new Map<string, Candidate>();
   private lastDiscovery = 0;
+  private lastDexDiscovery = 0;
+  private lastBirdeyeNew = 0;
+  private lastBirdeyeTrending = 0;
+  private lastBirdeyeMeme = 0;
   private dex = new DexScreener();
   constructor(private birdeye: Birdeye, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) {}
 
@@ -30,24 +34,49 @@ export class Scanner {
       trendingRanks:t.rank==null?{}:{[t.source]:t.rank},snapshots:[],score:0,dataConfidence:0,state:"WATCHING",collecting:false});
   }
 
+  private async birdeyeFeed(label:string, due:boolean, fn:()=>Promise<DiscoveredToken[]>) {
+    if (!due || !this.birdeye.isCuAvailable()) return;
+    try { for (const t of await fn()) this.add(t); }
+    catch(e) {
+      const m=e instanceof Error?e.message:String(e);
+      if (!m.toLowerCase().includes("cooldown")) log.warn(`[DISCOVERY ${label}] ${m}`);
+    }
+  }
+
   private async discover() {
+    const now=Date.now();
     const external = await Promise.allSettled([getAxiomTrending(),getFomoTrending()]);
     for(const r of external) if(r.status==="fulfilled") for(const t of r.value) this.add(t);
-    for (const fn of [()=>this.birdeye.trending(),()=>this.birdeye.newListings(),()=>this.birdeye.memeMomentum()]) {
-      try { for (const t of await fn()) this.add(t); } catch(e) { log.warn(`[DISCOVERY DATA] ${e instanceof Error?e.message:String(e)}`); }
+
+    // DEX Screener is the always-on, no-key discovery source.
+    if(now-this.lastDexDiscovery>=config.dexDiscoveryIntervalMs){
+      this.lastDexDiscovery=now;
+      try { for(const t of await this.dex.discover()) this.add(t); }
+      catch(e){ log.warn(`[DEX DISCOVERY] ${e instanceof Error?e.message:String(e)}`); }
+    }
+
+    // Birdeye is now a scarce/high-value discovery source, not the heartbeat.
+    const newDue=now-this.lastBirdeyeNew>=config.birdeyeNewIntervalMs;
+    if(newDue){this.lastBirdeyeNew=now; await this.birdeyeFeed("BIRDEYE NEW",true,()=>this.birdeye.newListings());}
+    const trendDue=now-this.lastBirdeyeTrending>=config.birdeyeTrendingIntervalMs;
+    if(trendDue){this.lastBirdeyeTrending=now; await this.birdeyeFeed("BIRDEYE TREND",true,()=>this.birdeye.trending());}
+    if(config.birdeyeMemeIntervalMs>0){
+      const memeDue=now-this.lastBirdeyeMeme>=config.birdeyeMemeIntervalMs;
+      if(memeDue){this.lastBirdeyeMeme=now; await this.birdeyeFeed("BIRDEYE MEME",true,()=>this.birdeye.memeMomentum());}
     }
     const active=[...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).length;
-    log.info(`[DISCOVERY] active candidates=${active} total-known=${this.candidates.size}`);
+    log.info(`[DISCOVERY] active candidates=${active} total-known=${this.candidates.size} | DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"}`);
   }
   private rankText(c:Candidate){return Object.entries(c.trendingRanks).map(([k,v])=>`${k}#${v}`).join(",");}
-  private priority(c:Candidate){return (c.sources.has("axiom")?3:0)+(c.sources.has("fomo")?3:0)+(c.sources.has("birdeye-trending")?2:0)+(c.sources.has("birdeye-meme")?1:0)+c.score/100;}
+  private priority(c:Candidate){return (c.sources.has("axiom")?3:0)+(c.sources.has("fomo")?3:0)+(c.sources.has("birdeye-trending")?2:0)+(c.sources.has("dex-boost-top")?1.5:0)+(c.sources.has("dex-boost")?1:0)+(c.sources.has("dex-profile")?0.5:0)+c.score/100;}
 
   private async collect(c:Candidate,index:number) {
     if(c.collecting||["DROPPED","BOUGHT","FAILED"].includes(c.state))return;
     c.collecting=true;
     try{
       const seed=c.token.seed??{};
-      const doBirdeye=index<config.birdeyeDeepCandidates || c.score>=config.promoteScore;
+      // Birdeye overview is only for already-promising finalists. DEX data builds the first score.
+      const doBirdeye=this.birdeye.isCuAvailable() && index<config.birdeyeDeepCandidates && c.score>=config.birdeyeDeepMinScore;
       const age=Date.now()-c.firstSeenAt;
       const doRoute=(index<config.routeDeepCandidates && age>=Math.min(20_000,config.minObservationMs/2)) || c.score>=config.promoteScore;
       const doBundle=index<config.bundleDeepCandidates || c.score>=70;
@@ -66,7 +95,7 @@ export class Scanner {
       else if(age>=config.maxObservationMs){c.state="DROPPED";c.decisionReason=`NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;}
       else if(c.score>=config.promoteScore)c.state="DEVELOPING"; else c.state="WATCHING";
 
-      if(snap.dataErrors?.length&&snap.priceUsd==null)log.warn(`[DATA] ${c.token.name} ($${c.token.symbol}) | ${snap.dataErrors.join(" | ")}`);
+      if(snap.dataErrors?.length&&snap.priceUsd==null&&!snap.dataErrors.some(x=>x.includes("cooldown")))log.warn(`[DATA] ${c.token.name} ($${c.token.symbol}) | ${snap.dataErrors.join(" | ")}`);
       log.scan({name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,
         status:c.state==="READY"?"✅ READY":c.state==="DROPPED"?"❌ NO BUY":`⏳ ${c.state}`,reason:c.decisionReason,sources:[...c.sources],rankText:this.rankText(c),
         details:{buys1m:snap.buys1m,sells1m:snap.sells1m,buys5m:snap.buys5m,sells5m:snap.sells5m,volume1mUsd:snap.volume1mUsd,volume5mUsd:snap.volume5mUsd,
@@ -80,7 +109,11 @@ export class Scanner {
     const now=Date.now(); if(now-this.lastDiscovery>=config.discoveryIntervalMs){this.lastDiscovery=now;await this.discover();}
     const active=[...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).sort((a,b)=>this.priority(b)-this.priority(a));
     const dex=await this.dex.batch(active.map(c=>c.token.address));
-    for(const c of active){const d=dex.get(c.token.address);if(d)c.token.seed={...(c.token.seed??{}),...Object.fromEntries(Object.entries(d).filter(([,v])=>v!==undefined))};}
+    for(const c of active){const d=dex.get(c.token.address) as any;if(d){
+      c.token.seed={...(c.token.seed??{}),...Object.fromEntries(Object.entries(d).filter(([k,v])=>v!==undefined&&!k.startsWith("token")))};
+      if(c.token.name==="Unknown"&&d.tokenName)c.token.name=d.tokenName;
+      if(c.token.symbol==="?"&&d.tokenSymbol)c.token.symbol=d.tokenSymbol;
+    }}
     await Promise.all(active.map((c,i)=>this.collect(c,i)));
   }
 }

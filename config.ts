@@ -13,8 +13,13 @@ const bool = (key: string, fallback: boolean) => {
 export const config = {
   birdeyeApiKey: process.env.BIRDEYE_API_KEY ?? "",
   birdeyeMinIntervalMs: num("BIRDEYE_MIN_INTERVAL_MS", 1_100),
-  birdeyeSnapshotCacheMs: num("BIRDEYE_SNAPSHOT_CACHE_MS", 30_000),
-  birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 6),
+  birdeyeSnapshotCacheMs: num("BIRDEYE_SNAPSHOT_CACHE_MS", 120_000),
+  birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 2),
+  birdeyeDeepMinScore: num("BIRDEYE_DEEP_MIN_SCORE", 65),
+  birdeyeCuCooldownMs: num("BIRDEYE_CU_COOLDOWN_MS", 21_600_000),
+  birdeyeNewIntervalMs: num("BIRDEYE_NEW_INTERVAL_MS", 5_400_000),
+  birdeyeTrendingIntervalMs: num("BIRDEYE_TRENDING_INTERVAL_MS", 21_600_000),
+  birdeyeMemeIntervalMs: num("BIRDEYE_MEME_INTERVAL_MS", 0),
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
 
@@ -25,6 +30,7 @@ export const config = {
 
   dexCacheMs: num("DEX_CACHE_MS", 8_000),
   dexTimeoutMs: num("DEX_TIMEOUT_MS", 6_000),
+  dexDiscoveryIntervalMs: num("DEX_DISCOVERY_INTERVAL_MS", 30_000),
 
   routeDeepCandidates: num("ROUTE_DEEP_CANDIDATES", 4),
   bundleDeepCandidates: num("BUNDLE_DEEP_CANDIDATES", 3),

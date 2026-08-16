@@ -43,7 +43,27 @@ function errText(e: unknown): string {
 export class Birdeye {
   private queue = new RequestQueue("Birdeye", config.birdeyeMinIntervalMs, 2);
   private cache = new Map<string, CacheEntry>();
-  private get(url: string, timeout = 8_000) { return this.queue.schedule(() => getJson(url, headers(), timeout)); }
+  private cuCooldownUntil = 0;
+  private warnedCooldown = false;
+
+  isCuAvailable() { return Date.now() >= this.cuCooldownUntil; }
+  private get(url: string, timeout = 8_000) {
+    if (!this.isCuAvailable()) throw new Error(`Birdeye CU cooldown active until ${new Date(this.cuCooldownUntil).toISOString()}`);
+    return this.queue.schedule(async () => {
+      try { return await getJson(url, headers(), timeout); }
+      catch (e) {
+        const msg = errText(e).toLowerCase();
+        if (msg.includes("compute units usage limit exceeded") || msg.includes("credit") && msg.includes("exceed")) {
+          this.cuCooldownUntil = Date.now() + config.birdeyeCuCooldownMs;
+          if (!this.warnedCooldown) {
+            this.warnedCooldown = true;
+            console.warn(`[BIRDEYE CU] quota unavailable — pausing Birdeye for ${Math.round(config.birdeyeCuCooldownMs/3600000)}h; DEX Screener remains active`);
+          }
+        }
+        throw e;
+      }
+    });
+  }
 
   async newListings(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
@@ -64,6 +84,7 @@ export class Birdeye {
 
   async snapshot(address: string, seed?: Partial<Snapshot>): Promise<Partial<Snapshot>> {
     if (!config.birdeyeApiKey) return { ...seed, dataErrors: ["Birdeye key missing"] };
+    if (!this.isCuAvailable()) return { ...seed, dataErrors: ["Birdeye CU cooldown"] };
     const cached = this.cache.get(address);
     if (cached && Date.now() - cached.at < config.birdeyeSnapshotCacheMs) return { ...seed, ...cached.value };
 

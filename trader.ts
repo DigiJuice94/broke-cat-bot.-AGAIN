@@ -1,4 +1,3 @@
-import { Birdeye } from "./birdeye.ts";
 import { Jupiter } from "./jupiter.ts";
 import { config, LAMPORTS_PER_SOL, SOL_MINT } from "./config.ts";
 import { Candidate, Position } from "./types.ts";
@@ -6,6 +5,7 @@ import { log } from "./log.ts";
 import { choosePositionUsd } from "./sizing.ts";
 import { WalletService } from "./wallet.ts";
 import { Notifier } from "./notifier.ts";
+import { DexScreener } from "./dexscreener.ts";
 
 export class Trader {
   readonly positions = new Map<string, Position>();
@@ -13,15 +13,16 @@ export class Trader {
   private lastStatusAt = 0;
   private lastIdleStatusAt = 0;
   private notifier = new Notifier();
+  private dex = new DexScreener();
 
-  constructor(private wallet: WalletService, private birdeye: Birdeye, private jupiter: Jupiter) {}
+  constructor(private wallet: WalletService, private jupiter: Jupiter) {}
 
   async buy(c: Candidate) {
     if (this.busy.has(c.token.address) || this.positions.has(c.token.address)) return;
     this.busy.add(c.token.address);
     try {
       const snap = c.snapshots.at(-1)!;
-      const [solBalance, solUsd] = await Promise.all([this.wallet.solBalance(), this.birdeye.solPriceUsd()]);
+      const [solBalance, solUsd] = await Promise.all([this.wallet.solBalance(), this.dex.solPriceUsd()]);
       const spendableSol = Math.max(0, solBalance - config.solFeeReserve);
       const spendableUsd = spendableSol * solUsd;
       const usd = choosePositionUsd({
@@ -100,7 +101,7 @@ export class Trader {
       if (amount <= 0n) { this.positions.delete(p.mint); return; }
       const result = await this.jupiter.swap(p.mint, SOL_MINT, amount);
       const solOut = Number(result.outRaw) / LAMPORTS_PER_SOL;
-      const solUsd = await this.birdeye.solPriceUsd();
+      const solUsd = await this.dex.solPriceUsd();
       const outUsd = solOut * solUsd;
       const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
       this.positions.delete(p.mint);
@@ -148,12 +149,13 @@ export class Trader {
     const shouldLogStatus = now-this.lastStatusAt >= config.positionStatusIntervalMs;
     if (shouldLogStatus) this.lastStatusAt = now;
 
+    const market = await this.dex.batch(positions.map(p=>p.mint));
     let index = 0;
     for (const p of positions) {
       index++;
       try {
-        const s = await this.birdeye.snapshot(p.mint);
-        const price = s.priceUsd;
+        const s = market.get(p.mint);
+        const price = s?.priceUsd;
         if (!price) continue;
         p.highPriceUsd = Math.max(p.highPriceUsd, price);
         const pnl = ((price-p.entryPriceUsd)/p.entryPriceUsd)*100;
