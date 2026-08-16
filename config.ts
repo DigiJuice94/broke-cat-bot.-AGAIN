@@ -17,14 +17,6 @@ export const config = {
   birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 6),
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
-  heliusApiKey: process.env.HELIUS_API_KEY ?? "",
-  heliusTimeoutMs: num("HELIUS_TIMEOUT_MS", 8_000),
-  heliusMinIntervalMs: num("HELIUS_MIN_INTERVAL_MS", 175),
-  heliusHolderCacheMs: num("HELIUS_HOLDER_CACHE_MS", 60_000),
-  heliusActivityCacheMs: num("HELIUS_ACTIVITY_CACHE_MS", 15_000),
-  heliusActivityLimit: num("HELIUS_ACTIVITY_LIMIT", 80),
-  heliusUniqueWalletMinTx: num("HELIUS_UNIQUE_WALLET_MIN_TX", 12),
-  heliusDeepCandidates: num("HELIUS_DEEP_CANDIDATES", 4),
 
   dexCacheMs: num("DEX_CACHE_MS", 8_000),
   dexTimeoutMs: num("DEX_TIMEOUT_MS", 6_000),
