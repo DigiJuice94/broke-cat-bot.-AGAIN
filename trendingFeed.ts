@@ -1,6 +1,6 @@
-import { config } from "./config.js";
-import { DiscoveredToken, FeedSource } from "./types.js";
-import { getJson } from "./http.js";
+import { config } from "./config.ts";
+import { DiscoveredToken, FeedSource } from "./types.ts";
+import { getJson } from "./http.ts";
 
 function normalize(j: any, source: FeedSource): DiscoveredToken[] {
   const rows = Array.isArray(j) ? j : (j?.tokens ?? j?.data?.tokens ?? j?.data ?? j?.items ?? []);

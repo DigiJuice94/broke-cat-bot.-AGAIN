@@ -1,7 +1,7 @@
 import bs58 from "bs58";
 import { Connection, Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { config, LAMPORTS_PER_SOL } from "./config.js";
+import { config, LAMPORTS_PER_SOL } from "./config.ts";
 
 export class WalletService {
   readonly connection = new Connection(config.rpcUrl, "confirmed");

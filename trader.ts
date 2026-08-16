@@ -1,10 +1,10 @@
-import { Birdeye } from "../birdeye.js";
-import { Jupiter } from "../jupiter.js";
-import { config, LAMPORTS_PER_SOL, SOL_MINT } from "./config.js";
-import { Candidate, Position } from "./types.js";
-import { log } from "../log.js";
-import { choosePositionUsd } from "./sizing.js";
-import { WalletService } from "../wallet.js";
+import { Birdeye } from "./birdeye.ts";
+import { Jupiter } from "./jupiter.ts";
+import { config, LAMPORTS_PER_SOL, SOL_MINT } from "./config.ts";
+import { Candidate, Position } from "./types.ts";
+import { log } from "./log.ts";
+import { choosePositionUsd } from "./sizing.ts";
+import { WalletService } from "./wallet.ts";
 
 export class Trader {
   readonly positions = new Map<string, Position>();

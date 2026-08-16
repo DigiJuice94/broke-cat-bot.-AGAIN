@@ -1,6 +1,6 @@
-import { config, SOL_MINT } from "./config.js";
-import { DiscoveredToken, Snapshot } from "./types.js";
-import { getJson } from "./http.js";
+import { config, SOL_MINT } from "./config.ts";
+import { DiscoveredToken, Snapshot } from "./types.ts";
+import { getJson } from "./http.ts";
 
 const BASE = "https://public-api.birdeye.so";
 const headers = () => ({ "X-API-KEY": config.birdeyeApiKey, "x-chain": "solana", accept: "application/json" });

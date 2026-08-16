@@ -1,3 +1,7 @@
+## v1.0.1 Railway import-path fix
+
+Flat GitHub layout with TypeScript-local imports corrected for direct `tsx index.ts` execution.
+
 # Broke Cat Bot v1.0 — Clean Core
 
 A fresh Solana early-runner bot architecture built around **data collection over raw scan speed**.

@@ -1,7 +1,7 @@
-import { config, SOL_MINT } from "./config.js";
-import { SwapOrder } from "./types.js";
-import { getJson, postJson } from "./http.js";
-import { WalletService } from "../wallet.js";
+import { config, SOL_MINT } from "./config.ts";
+import { SwapOrder } from "./types.ts";
+import { getJson, postJson } from "./http.ts";
+import { WalletService } from "./wallet.ts";
 
 const BASE = "https://api.jup.ag/swap/v2";
 const headers = () => ({ "x-api-key": config.jupiterApiKey, accept: "application/json" });

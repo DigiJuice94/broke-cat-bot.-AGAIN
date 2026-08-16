@@ -1,4 +1,4 @@
-import { Candidate, Snapshot } from "./types.js";
+import { Candidate, Snapshot } from "./types.ts";
 
 const clamp = (v:number, a=0, b=100) => Math.max(a, Math.min(b, v));
 const gain = (a?:number, b?:number) => a && b ? ((b-a)/Math.abs(a))*100 : 0;

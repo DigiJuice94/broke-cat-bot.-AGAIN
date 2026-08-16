@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+import { config } from "./config.ts";
 
 export function choosePositionUsd(input: {
   score:number; confidence:number; spendableUsd:number; routeQuality:number; multiTrend:boolean;

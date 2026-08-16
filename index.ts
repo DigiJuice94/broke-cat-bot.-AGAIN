@@ -1,10 +1,10 @@
-import { Birdeye } from "./birdeye.js";
-import { Jupiter } from "./jupiter.js";
-import { config } from "./config.js";
-import { Scanner } from "./scanner.js";
-import { Trader } from "./trader.js";
-import { WalletService } from "./wallet.js";
-import { log } from "./log.js";
+import { Birdeye } from "./birdeye.ts";
+import { Jupiter } from "./jupiter.ts";
+import { config } from "./config.ts";
+import { Scanner } from "./scanner.ts";
+import { Trader } from "./trader.ts";
+import { WalletService } from "./wallet.ts";
+import { log } from "./log.ts";
 
 const sleep = (ms:number) => new Promise(r => setTimeout(r, ms));
 

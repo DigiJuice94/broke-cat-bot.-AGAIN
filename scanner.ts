@@ -1,11 +1,11 @@
-import { Birdeye } from "../birdeye.js";
-import { getAxiomTrending, getFomoTrending } from "./trendingFeed.js";
-import { bundleRisk } from "./bundle.js";
-import { Jupiter } from "../jupiter.js";
-import { config } from "./config.js";
-import { Candidate, DiscoveredToken, Snapshot } from "./types.js";
-import { log } from "../log.js";
-import { scoreCandidate } from "./scoring.js";
+import { Birdeye } from "./birdeye.ts";
+import { getAxiomTrending, getFomoTrending } from "./trendingFeed.ts";
+import { bundleRisk } from "./bundle.ts";
+import { Jupiter } from "./jupiter.ts";
+import { config } from "./config.ts";
+import { Candidate, DiscoveredToken, Snapshot } from "./types.ts";
+import { log } from "./log.ts";
+import { scoreCandidate } from "./scoring.ts";
 
 export class Scanner {
   readonly candidates = new Map<string, Candidate>();

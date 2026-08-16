@@ -1,5 +1,5 @@
-import { config } from "./config.js";
-import { getJson } from "./http.js";
+import { config } from "./config.ts";
+import { getJson } from "./http.ts";
 
 export async function bundleRisk(address: string): Promise<{status:"ok"|"unknown"|"error"; risk?:number}> {
   if (!config.bundleApiUrl) return { status: "unknown" };
