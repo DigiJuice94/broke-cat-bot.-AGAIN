@@ -14,7 +14,7 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
     "priceUsd", "liquidityUsd", "marketCapUsd", "holderCount",
     "volume1mUsd", "buys1m", "sells1m", "priceChange1mPct"
   ];
-  const bonusFields: (keyof Snapshot)[] = ["volume5mUsd", "trades1m", "uniqueWallet1m", "buyVolume1mUsd", "sellVolume1mUsd"];
+  const bonusFields: (keyof Snapshot)[] = ["volume5mUsd", "trades1m", "uniqueWallet1m", "buyVolume1mUsd", "sellVolume1mUsd", "chainTx1m", "top10HolderPct"];
   const corePresent = coreFields.filter(k => s[k] !== undefined).length;
   const bonusPresent = bonusFields.filter(k => s[k] !== undefined).length;
   let confidence = (corePresent / coreFields.length) * 82 + (bonusPresent / bonusFields.length) * 8;
@@ -36,11 +36,23 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
   score += clamp(gain(prev?.holderCount, s.holderCount) * 0.20, -4, 8);
   score += clamp(gain(prev?.uniqueWallet1m, s.uniqueWallet1m) * 0.12, -4, 8);
 
+  // Helius on-chain activity: prefer acceleration, not simply a large historical count.
+  const tx10 = s.chainTx10s ?? 0;
+  const tx30 = s.chainTx30s ?? 0;
+  const tx60 = s.chainTx1m ?? 0;
+  const recentShare = tx60 > 0 ? tx10 / tx60 : 0;
+  score += clamp(tx10 * 0.8, 0, 10);
+  score += clamp((tx30 - (tx60 - tx30)) * 0.35, -5, 10);
+  score += clamp((recentShare - 0.17) * 30, -4, 8);
+
   if (volumeNow >= 500) score += 3;
   if (volumeNow >= 2_500) score += 4;
   if (volumeNow >= 10_000) score += 4;
   if ((s.uniqueWallet1m ?? 0) >= 10) score += 4;
   if ((s.uniqueWallet1m ?? 0) >= 25) score += 4;
+  if (tx60 >= 10) score += 3;
+  if (tx60 >= 30) score += 3;
+  if (tx60 >= 60) score += 3;
 
   // Trending means "look here first", with only a modest score bonus.
   if (c.sources.has("axiom")) score += 5;
@@ -56,6 +68,7 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
   let reason = "collecting momentum data";
   if (s.priceUsd == null) reason = "market data incomplete";
   else if (ratio >= 2) reason = `buy pressure ${ratio.toFixed(1)}x`;
+  else if (tx10 >= 5 && tx10 >= Math.max(2, (tx60 - tx30))) reason = `Helius activity accelerating: ${tx10} tx/10s, ${tx60} tx/1m`;
   else if ((s.priceChange1mPct ?? 0) >= 8) reason = `price momentum +${(s.priceChange1mPct ?? 0).toFixed(1)}%/1m`;
   else if (!s.buyRoute) reason = "market data received; no buy route yet";
   else if (!s.sellRoute) reason = "market data received; sell route unavailable";

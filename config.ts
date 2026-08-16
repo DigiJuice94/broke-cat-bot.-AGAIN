@@ -13,6 +13,11 @@ const bool = (key: string, fallback: boolean) => {
 export const config = {
   birdeyeApiKey: process.env.BIRDEYE_API_KEY ?? "",
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
+  heliusApiKey: process.env.HELIUS_API_KEY ?? "",
+  heliusTimeoutMs: num("HELIUS_TIMEOUT_MS", 8_000),
+  heliusHolderCacheMs: num("HELIUS_HOLDER_CACHE_MS", 30_000),
+  heliusActivityLimit: num("HELIUS_ACTIVITY_LIMIT", 100),
+  heliusUniqueWalletMinTx: num("HELIUS_UNIQUE_WALLET_MIN_TX", 8),
   rpcUrl: process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
   privateKey: process.env.BS58_PRIVATE_KEY ?? "",
   liveTrading: bool("LIVE_TRADING", false),

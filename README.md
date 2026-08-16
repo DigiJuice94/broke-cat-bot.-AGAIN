@@ -164,3 +164,13 @@ This package is intentionally flat. Upload all files in this folder directly to 
 - Birdeye endpoint errors are printed as `[DATA] ...` warnings when price is unavailable.
 - Runner score is separated from Jupiter route availability. Routes remain hard execution gates.
 - Data confidence now reflects actual market-data completeness rather than false/true route booleans.
+
+## v1.1 Helius intelligence
+Add `HELIUS_API_KEY` in Railway. Helius is used as an independent on-chain intelligence layer, not as a replacement for Birdeye or Jupiter.
+
+- `getTransactionsForAddress` (signatures mode) measures 10s/30s/60s on-chain transaction activity for candidate mints.
+- A full-transaction sample is only requested when activity is high enough, to estimate unique fee-payer wallets without wasting credits on dead tokens.
+- `getTokenAccounts` supplies token-account holder count.
+- `getTokenLargestAccounts` + `getTokenSupply` calculate top-10 concentration.
+- Holder/concentration results are cached for 30 seconds by default.
+- Helius failures lower data completeness but do not stop the scanner.

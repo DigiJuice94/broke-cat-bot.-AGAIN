@@ -24,6 +24,10 @@ export interface Snapshot {
   sells1m?: number;
   trades1m?: number;
   uniqueWallet1m?: number;
+  chainTx10s?: number;
+  chainTx30s?: number;
+  chainTx1m?: number;
+  heliusStatus?: "ok" | "partial" | "off" | "error";
   buyVolume1mUsd?: number;
   sellVolume1mUsd?: number;
   priceChange1mPct?: number;

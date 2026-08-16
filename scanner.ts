@@ -6,12 +6,13 @@ import { config } from "./config.ts";
 import { Candidate, DiscoveredToken, Snapshot } from "./types.ts";
 import { log } from "./log.ts";
 import { scoreCandidate } from "./scoring.ts";
+import { Helius } from "./helius.ts";
 
 export class Scanner {
   readonly candidates = new Map<string, Candidate>();
   private lastDiscovery = 0;
 
-  constructor(private birdeye: Birdeye, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) {}
+  constructor(private birdeye: Birdeye, private helius: Helius, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) {}
 
   private add(t: DiscoveredToken) {
     const existing = this.candidates.get(t.address);
@@ -52,13 +53,19 @@ export class Scanner {
     if (c.collecting || ["DROPPED","BOUGHT","FAILED"].includes(c.state)) return;
     c.collecting = true;
     try {
-      const [market, bundle, route] = await Promise.all([
+      const [market, chain, bundle, route] = await Promise.all([
         this.birdeye.snapshot(c.token.address, c.token.seed),
+        this.helius.snapshot(c.token.address),
         bundleRisk(c.token.address),
         this.jupiter.canBuyAndSell(c.token.address)
       ]);
       const snap: Snapshot = {
         at: Date.now(), ...market,
+        holderCount: chain.holderCount ?? market.holderCount,
+        top10HolderPct: chain.top10HolderPct ?? market.top10HolderPct,
+        uniqueWallet1m: chain.uniqueWallet1m ?? market.uniqueWallet1m,
+        chainTx10s: chain.chainTx10s, chainTx30s: chain.chainTx30s, chainTx1m: chain.chainTx1m,
+        heliusStatus: chain.heliusStatus,
         bundleRisk: bundle.risk,
         bundleStatus: bundle.status === "ok" ? "ok" : bundle.status === "error" ? "error" : "unknown",
         buyRoute: route.buy, sellRoute: route.sell, routeQuality: route.quality
@@ -76,6 +83,7 @@ export class Scanner {
       } else if (c.score >= config.promoteScore) c.state = "DEVELOPING";
       else c.state = "WATCHING";
 
+      if (chain.heliusErrors?.length) log.warn(`[HELIUS] ${c.token.name} | ${chain.heliusErrors.join(" | ")}`);
       if (snap.dataErrors?.length && snap.priceUsd == null) {
         log.warn(`[DATA] ${c.token.name} (${c.token.symbol}) | ${snap.dataErrors.join(" | ")}`);
       }
@@ -84,7 +92,8 @@ export class Scanner {
         name: c.token.name, symbol: c.token.symbol, priceUsd: snap.priceUsd,
         score: c.score, confidence: c.dataConfidence,
         status: c.state === "READY" ? "✅ READY" : c.state === "DROPPED" ? "❌ NO BUY" : `⏳ ${c.state}`,
-        reason: c.decisionReason, sources: [...c.sources], rankText: this.rankText(c)
+        reason: c.decisionReason, sources: [...c.sources], rankText: this.rankText(c),
+        details: { buys1m: snap.buys1m, sells1m: snap.sells1m, volume1mUsd: snap.volume1mUsd, liquidityUsd: snap.liquidityUsd, holderCount: snap.holderCount, uniqueWallet1m: snap.uniqueWallet1m, chainTx10s: snap.chainTx10s, chainTx30s: snap.chainTx30s, chainTx1m: snap.chainTx1m, top10HolderPct: snap.top10HolderPct, heliusStatus: snap.heliusStatus }
       });
 
       if (c.state === "READY") await this.onReady(c);
