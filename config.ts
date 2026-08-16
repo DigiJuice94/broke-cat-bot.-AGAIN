@@ -18,6 +18,11 @@ export const config = {
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
 
+  ntfyServer: process.env.NTFY_SERVER ?? "https://ntfy.sh",
+  ntfyTopic: process.env.NTFY_TOPIC ?? "",
+  ntfyToken: process.env.NTFY_TOKEN ?? "",
+  ntfyTimeoutMs: num("NTFY_TIMEOUT_MS", 5_000),
+
   dexCacheMs: num("DEX_CACHE_MS", 8_000),
   dexTimeoutMs: num("DEX_TIMEOUT_MS", 6_000),
 

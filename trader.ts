@@ -5,12 +5,14 @@ import { Candidate, Position } from "./types.ts";
 import { log } from "./log.ts";
 import { choosePositionUsd } from "./sizing.ts";
 import { WalletService } from "./wallet.ts";
+import { Notifier } from "./notifier.ts";
 
 export class Trader {
   readonly positions = new Map<string, Position>();
   private busy = new Set<string>();
   private lastStatusAt = 0;
   private lastIdleStatusAt = 0;
+  private notifier = new Notifier();
 
   constructor(private wallet: WalletService, private birdeye: Birdeye, private jupiter: Jupiter) {}
 
@@ -45,6 +47,11 @@ export class Trader {
         });
         c.state = "BOUGHT";
         log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🧪 PAPER BUY",reason:`would buy $${usd.toFixed(2)} (${sol.toFixed(5)} SOL) | Contract:${c.token.address} | now tracking paper position` });
+        void this.notifier.send({
+          title: `🐱 PAPER BUY $${c.token.symbol}`,
+          message: `${c.token.name} ($${c.token.symbol}) | $${usd.toFixed(2)} | Score ${c.score}/100 | Entry $${entryPrice.toPrecision(6)} | Contract ${c.token.address}`,
+          priority: "default", tags: ["chart_with_upwards_trend"]
+        });
         return;
       }
 
@@ -60,6 +67,11 @@ export class Trader {
       });
       c.state = "BOUGHT";
       log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🟢 BOUGHT",reason:`$${usd.toFixed(2)} | Contract:${c.token.address} | tx ${result.signature}` });
+      void this.notifier.send({
+        title: `🐱 BOUGHT $${c.token.symbol}`,
+        message: `${c.token.name} ($${c.token.symbol}) | $${usd.toFixed(2)} | Score ${c.score}/100 | Entry $${actualEntryPrice.toPrecision(6)} | Contract ${c.token.address}`,
+        priority: "high", tags: ["chart_with_upwards_trend"]
+      });
     } catch (e) {
       c.state = "FAILED"; c.decisionReason = `BUY FAILED: ${e instanceof Error ? e.message : String(e)}`;
       log.error(`[BUY FAILED] ${c.token.name}`, c.decisionReason);
@@ -76,6 +88,11 @@ export class Trader {
         const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
         this.positions.delete(p.mint);
         log.info(`[SELL] ${p.name} ($${p.symbol}) | 💰 PAPER SOLD | ${reason} | value≈$${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}%`);
+        void this.notifier.send({
+          title: `💰 PAPER SOLD $${p.symbol}`,
+          message: `${p.name} ($${p.symbol}) | ${reason} | Value $${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}%`,
+          priority: "default", tags: [pnlPct >= 0 ? "moneybag" : "warning"]
+        });
         return;
       }
       const bal = await this.wallet.tokenBalanceRaw(p.mint);
@@ -88,7 +105,20 @@ export class Trader {
       const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
       this.positions.delete(p.mint);
       log.info(`[SELL] ${p.name} ($${p.symbol}) | 💰 SOLD | ${reason} | received≈$${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}% | tx ${result.signature}`);
-    } catch (e) { log.error(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ SELL FAILED | ${e instanceof Error ? e.message : String(e)}`); }
+      void this.notifier.send({
+        title: `💰 SOLD $${p.symbol}`,
+        message: `${p.name} ($${p.symbol}) | ${reason} | Received $${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}%`,
+        priority: "high", tags: [pnlPct >= 0 ? "moneybag" : "warning"]
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.error(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ SELL FAILED | ${msg}`);
+      void this.notifier.send({
+        title: `⚠️ SELL FAILED $${p.symbol}`,
+        message: `${p.name} ($${p.symbol}) | ${msg} | Contract ${p.mint}`,
+        priority: "max", tags: ["warning"]
+      });
+    }
     finally { this.busy.delete(p.mint); }
   }
 

@@ -97,3 +97,23 @@ Old `HELIUS_*` Railway variables may be deleted, but leaving them there will not
 - Shows `[OPEN POSITIONS] 0 | 💤 Waiting for runner` when idle.
 - Paper buys now create simulated positions and run through the same TP/SL/trailing/time exit logic, ending with `💰 PAPER SOLD`.
 - Successful live exits remain `💰 SOLD`; failed live exits remain `⚠️ SELL FAILED`.
+
+## v1.3.4 — Free phone alerts with ntfy
+
+Broke Cat can now send free push notifications to your phone for important trade events without Twilio/SMS charges.
+
+Notifications:
+- 🐱 BUY / PAPER BUY
+- 💰 SOLD / PAPER SOLD
+- ⚠️ SELL FAILED
+
+Railway variables:
+
+```env
+NTFY_SERVER=https://ntfy.sh
+NTFY_TOPIC=use-a-long-random-private-topic-name
+```
+
+Install the ntfy mobile app and subscribe to the exact same topic. `NTFY_TOKEN` is optional and only needed for an authenticated/self-hosted ntfy server.
+
+Alert delivery is intentionally non-blocking. If ntfy is unavailable, trading/scanning continues normally and Railway logs a warning.
