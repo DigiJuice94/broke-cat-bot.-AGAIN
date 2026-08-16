@@ -9,6 +9,7 @@ export interface DiscoveredToken {
   rank?: number;
   discoveredAt: number;
   listedAt?: number;
+  seed?: Partial<Snapshot>;
 }
 
 export interface Snapshot {
@@ -22,6 +23,9 @@ export interface Snapshot {
   buys1m?: number;
   sells1m?: number;
   trades1m?: number;
+  uniqueWallet1m?: number;
+  buyVolume1mUsd?: number;
+  sellVolume1mUsd?: number;
   priceChange1mPct?: number;
   top10HolderPct?: number;
   bundleRisk?: number;
@@ -29,6 +33,7 @@ export interface Snapshot {
   buyRoute: boolean;
   sellRoute: boolean;
   routeQuality?: number;
+  dataErrors?: string[];
 }
 
 export interface Candidate {

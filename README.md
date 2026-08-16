@@ -156,3 +156,11 @@ A private-key trading bot can move funds controlled by that key. Use a dedicated
 
 ## Flat GitHub upload
 This package is intentionally flat. Upload all files in this folder directly to the GitHub repo root. Railway starts `index.ts` from the root.
+
+## v1.0.2 Data Enrichment Fix
+- Token Overview is now the primary Birdeye enrichment source.
+- `/defi/price` is used as a price/liquidity fallback.
+- Discovery-feed market fields seed the first snapshot instead of being discarded.
+- Birdeye endpoint errors are printed as `[DATA] ...` warnings when price is unavailable.
+- Runner score is separated from Jupiter route availability. Routes remain hard execution gates.
+- Data confidence now reflects actual market-data completeness rather than false/true route booleans.

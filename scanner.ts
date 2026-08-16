@@ -22,6 +22,7 @@ export class Scanner {
       if (existing.token.name === "Unknown" && t.name !== "Unknown") existing.token.name = t.name;
       if (existing.token.symbol === "?" && t.symbol !== "?") existing.token.symbol = t.symbol;
       if (existing.token.decimals == null && t.decimals != null) existing.token.decimals = t.decimals;
+      if (t.seed) existing.token.seed = { ...(existing.token.seed ?? {}), ...Object.fromEntries(Object.entries(t.seed).filter(([,v]) => v !== undefined)) };
       return;
     }
     if ([...this.candidates.values()].filter(c => !["DROPPED","BOUGHT","FAILED"].includes(c.state)).length >= config.maxActiveCandidates) return;
@@ -52,7 +53,7 @@ export class Scanner {
     c.collecting = true;
     try {
       const [market, bundle, route] = await Promise.all([
-        this.birdeye.snapshot(c.token.address),
+        this.birdeye.snapshot(c.token.address, c.token.seed),
         bundleRisk(c.token.address),
         this.jupiter.canBuyAndSell(c.token.address)
       ]);
@@ -74,6 +75,10 @@ export class Scanner {
         c.decisionReason = `NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;
       } else if (c.score >= config.promoteScore) c.state = "DEVELOPING";
       else c.state = "WATCHING";
+
+      if (snap.dataErrors?.length && snap.priceUsd == null) {
+        log.warn(`[DATA] ${c.token.name} (${c.token.symbol}) | ${snap.dataErrors.join(" | ")}`);
+      }
 
       log.scan({
         name: c.token.name, symbol: c.token.symbol, priceUsd: snap.priceUsd,
