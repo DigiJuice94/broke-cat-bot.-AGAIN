@@ -42,6 +42,8 @@ export const config = {
   trailingStopPct: num("TRAILING_STOP_PCT", 12),
   maxPositionAgeMin: num("MAX_POSITION_AGE_MIN", 12),
   positionPollMs: num("POSITION_POLL_MS", 5_000),
+  positionStatusIntervalMs: num("POSITION_STATUS_INTERVAL_MS", 5_000),
+  idlePositionStatusIntervalMs: num("IDLE_POSITION_STATUS_INTERVAL_MS", 30_000),
   axiomTrendingUrl: process.env.AXIOM_TRENDING_URL ?? "",
   axiomApiKey: process.env.AXIOM_TRENDING_API_KEY ?? "",
   fomoTrendingUrl: process.env.FOMO_TRENDING_URL ?? "",

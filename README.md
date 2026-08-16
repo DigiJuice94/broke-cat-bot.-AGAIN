@@ -1,4 +1,4 @@
-## v1.3.1 Sell Status
+## v1.3.2 Sell Status
 - Successful completed exits log `💰 SOLD`.
 - Failed exits log `⚠️ SELL FAILED`.
 - Trading/scoring logic otherwise unchanged from v1.3.
@@ -85,3 +85,11 @@ REQUIRE_SELL_ROUTE=true
 ```
 
 Old `HELIUS_*` Railway variables may be deleted, but leaving them there will not affect v1.3 because the code no longer reads them.
+
+
+## v1.3.2 Current Trade
+- Adds `[CURRENT TRADE]` heartbeat for every open position.
+- Shows HOLDING/PAPER HOLDING, entry, current price, original position size, estimated current value, P/L, peak P/L, time held, and score at buy.
+- Shows `[OPEN POSITIONS] 0 | 💤 Waiting for runner` when idle.
+- Paper buys now create simulated positions and run through the same TP/SL/trailing/time exit logic, ending with `💰 PAPER SOLD`.
+- Successful live exits remain `💰 SOLD`; failed live exits remain `⚠️ SELL FAILED`.

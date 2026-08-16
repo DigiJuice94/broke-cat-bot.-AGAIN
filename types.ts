@@ -67,6 +67,9 @@ export interface Position {
   openedAt: number;
   highPriceUsd: number;
   signature?: string;
+  scoreAtBuy?: number;
+  confidenceAtBuy?: number;
+  paper?: boolean;
 }
 
 export interface SwapOrder {
