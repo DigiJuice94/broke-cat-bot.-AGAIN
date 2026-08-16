@@ -1,3 +1,8 @@
+## v1.3.1 Sell Status
+- Successful completed exits log `💰 SOLD`.
+- Failed exits log `⚠️ SELL FAILED`.
+- Trading/scoring logic otherwise unchanged from v1.3.
+
 # Broke Cat Bot v1.3 — Simple Efficient
 
 v1.3 removes Helius from the active scanner and scoring path. The bot now focuses on a simple pipeline:

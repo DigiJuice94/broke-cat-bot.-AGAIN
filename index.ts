@@ -10,7 +10,7 @@ const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function main(){
   const wallet=new WalletService(),birdeye=new Birdeye(),jupiter=new Jupiter(wallet),trader=new Trader(wallet,birdeye,jupiter);
   const scanner=new Scanner(birdeye,jupiter,c=>trader.buy(c));
-  log.info("🐱 BROKE CAT BOT v1.3 — SIMPLE EFFICIENT");
+  log.info("🐱 BROKE CAT BOT v1.3.1 — SIMPLE EFFICIENT");
   log.info(`Mode: ${config.liveTrading?"🔴 LIVE":"🟡 PAPER / SCAN"}`); log.info(`Wallet: ${wallet.address??"NOT CONFIGURED"}`);
   log.info(`Observation: ${config.minObservationMs/1000}-${config.maxObservationMs/1000}s | Buy score ≥${config.buyScore} | Data ≥${config.minDataConfidence}%`);
   log.info(`Data stack: DEX Screener batch + Birdeye queued/cache + Jupiter finalists`);

@@ -68,8 +68,8 @@ export class Trader {
       const outUsd = solOut * solUsd;
       const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
       this.positions.delete(p.mint);
-      log.info(`[SELL] ${p.name} ($${p.symbol}) | ${reason} | received≈$${outUsd.toFixed(2)} | P/L ${pnlPct.toFixed(1)}% | tx ${result.signature}`);
-    } catch (e) { log.error(`[SELL FAILED] ${p.name}: ${e instanceof Error ? e.message : String(e)}`); }
+      log.info(`[SELL] ${p.name} ($${p.symbol}) | 💰 SOLD | ${reason} | received≈$${outUsd.toFixed(2)} | P/L ${pnlPct.toFixed(1)}% | tx ${result.signature}`);
+    } catch (e) { log.error(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ SELL FAILED | ${e instanceof Error ? e.message : String(e)}`); }
     finally { this.busy.delete(p.mint); }
   }
 
