@@ -7,6 +7,7 @@ const BASE = "https://public-api.birdeye.so";
 const headers = () => ({ "X-API-KEY": config.birdeyeApiKey, "x-chain": "solana", accept: "application/json" });
 
 interface CacheEntry { at: number; value: Partial<Snapshot> }
+interface HolderCacheEntry { at:number; value: Partial<Snapshot> }
 
 function arr(v: any): any[] {
   if (Array.isArray(v)) return v;
@@ -43,12 +44,32 @@ function errText(e: unknown): string {
 export class Birdeye {
   private queue = new RequestQueue("Birdeye", config.birdeyeMinIntervalMs, 2);
   private cache = new Map<string, CacheEntry>();
+  private holderCache = new Map<string, HolderCacheEntry>();
   private cuCooldownUntil = 0;
+  private cuWindowStartedAt = Date.now();
+  private cuUsedThisHour = 0;
   private warnedCooldown = false;
 
   isCuAvailable() { return Date.now() >= this.cuCooldownUntil; }
-  private get(url: string, timeout = 8_000) {
+  private refreshCuWindow() {
+    if (Date.now() - this.cuWindowStartedAt >= 3_600_000) {
+      this.cuWindowStartedAt = Date.now();
+      this.cuUsedThisHour = 0;
+    }
+  }
+  private canSpend(cost:number) {
+    this.refreshCuWindow();
+    return this.cuUsedThisHour + cost <= config.birdeyeCuBudgetPerHour;
+  }
+  private remainingBudget() {
+    this.refreshCuWindow();
+    return Math.max(0, config.birdeyeCuBudgetPerHour - this.cuUsedThisHour);
+  }
+  budgetText() { return `${this.cuUsedThisHour}/${config.birdeyeCuBudgetPerHour} CU/hr`; }
+  private get(url: string, timeout = 8_000, cuCost = 20) {
     if (!this.isCuAvailable()) throw new Error(`Birdeye CU cooldown active until ${new Date(this.cuCooldownUntil).toISOString()}`);
+    if (!this.canSpend(cuCost)) throw new Error(`Birdeye local CU budget reached (${this.budgetText()})`);
+    this.cuUsedThisHour += cuCost;
     return this.queue.schedule(async () => {
       try { return await getJson(url, headers(), timeout); }
       catch (e) {
@@ -67,18 +88,18 @@ export class Birdeye {
 
   async newListings(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
-    const j = await this.get(`${BASE}/defi/v2/tokens/new_listing?limit=20&meme_platform_enabled=true`);
+    const j = await this.get(`${BASE}/defi/v2/tokens/new_listing?limit=20&meme_platform_enabled=true`, 8_000, 30);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-new", i + 1)).filter(Boolean) as DiscoveredToken[];
   }
   async trending(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
-    const j = await this.get(`${BASE}/defi/token_trending?sort_by=rank&sort_type=asc&offset=0&limit=20`);
+    const j = await this.get(`${BASE}/defi/token_trending?sort_by=rank&sort_type=asc&offset=0&limit=20`, 8_000, 40);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-trending", n(x.rank, i + 1))).filter(Boolean) as DiscoveredToken[];
   }
   async memeMomentum(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
     const q = new URLSearchParams({ sort_by: "volume_1m_usd", sort_type: "desc", source: "all", offset: "0", limit: "20" });
-    const j = await this.get(`${BASE}/defi/v3/token/meme/list?${q}`);
+    const j = await this.get(`${BASE}/defi/v3/token/meme/list?${q}`, 8_000, 50);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-meme", i + 1)).filter(Boolean) as DiscoveredToken[];
   }
 
@@ -91,14 +112,14 @@ export class Birdeye {
     const errors: string[] = [];
     let o: any = {};
     try {
-      const j = await this.get(`${BASE}/defi/token_overview?address=${encodeURIComponent(address)}&frames=1m,5m`, 9_000);
+      const j = await this.get(`${BASE}/defi/token_overview?address=${encodeURIComponent(address)}&frames=1m,5m`, 9_000, 20);
       o = j?.data ?? j ?? {};
     } catch (e) { errors.push(`overview: ${errText(e)}`); }
 
     let priceFallback: any = {};
     if (n(o.price, seed?.priceUsd) == null) {
       try {
-        const j = await this.get(`${BASE}/defi/price?address=${encodeURIComponent(address)}&include_liquidity=true`, 7_000);
+        const j = await this.get(`${BASE}/defi/price?address=${encodeURIComponent(address)}&include_liquidity=true`, 7_000, 10);
         priceFallback = j?.data ?? j ?? {};
       } catch (e) { errors.push(`price: ${errText(e)}`); }
     }
@@ -120,6 +141,23 @@ export class Birdeye {
     };
     this.cache.set(address, { at: Date.now(), value });
     return { ...seed, ...value };
+  }
+
+  /** Expensive risk check reserved for near-buy finalists only. */
+  async holderStats(address:string): Promise<Partial<Snapshot>> {
+    if (!config.birdeyeApiKey || !this.isCuAvailable() || !this.canSpend(35)) return {};
+    const cached = this.holderCache.get(address);
+    if (cached && Date.now()-cached.at < config.birdeyeHolderCacheMs) return cached.value;
+    try {
+      const j = await this.get(`${BASE}/defi/v3/token/holder?address=${encodeURIComponent(address)}&offset=0&limit=10&mode=wallet&get_holder_infos=false`, 9_000, 35);
+      const d = j?.data ?? j ?? {};
+      const value:Partial<Snapshot> = {
+        holderCount: n(d.holder, d.holderCount, d.holders),
+        top10HolderPct: n(d.top10HoldPercent, d.top10HolderPercent, d.top10_holder_percent)
+      };
+      this.holderCache.set(address,{at:Date.now(),value});
+      return value;
+    } catch { return {}; }
   }
 
   async solPriceUsd(): Promise<number> {

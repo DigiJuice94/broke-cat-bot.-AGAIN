@@ -25,6 +25,18 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
   score += clamp((ratio-1)*8, -10, 24);
   score += clamp(priceMomentum*0.75, -15, 18);
   if (volumeNow>=500) score+=3; if (volumeNow>=2500) score+=4; if (volumeNow>=10000) score+=4;
+  if (s.liquidityUsd != null) {
+    if (s.liquidityUsd < 1500) score -= 8;
+    else if (s.liquidityUsd >= 5000) score += 2;
+    if (s.liquidityUsd >= 20000) score += 2;
+  }
+  if (s.buyVolume1mUsd != null && s.sellVolume1mUsd != null) {
+    const volRatio = s.buyVolume1mUsd / Math.max(1, s.sellVolume1mUsd);
+    score += clamp((volRatio-1)*4, -6, 10);
+  }
+  if ((s.uniqueWallet1m ?? 0) >= 10) score += 2;
+  if ((s.uniqueWallet1m ?? 0) >= 25) score += 2;
+  if ((s.uniqueWallet1m ?? 0) >= 50) score += 2;
 
   // What changed while Broke Cat watched the coin — this is the main early-runner signal.
   const volAccel = gain(prev?.volume1mUsd ?? prev?.volume5mUsd, s.volume1mUsd ?? s.volume5mUsd);

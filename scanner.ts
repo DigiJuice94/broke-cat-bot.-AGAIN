@@ -100,7 +100,7 @@ export class Scanner {
     this.pruneKnown();
     const active=this.activeCount();
     const poolState=active<config.minActiveCandidates?"REFILLING":"HEALTHY";
-    log.info(`[DISCOVERY] active candidates=${active} target≥${config.minActiveCandidates} total-known=${this.candidates.size} pool:${poolState} | DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"}`);
+    log.info(`[DISCOVERY] active candidates=${active} target≥${config.minActiveCandidates} total-known=${this.candidates.size} pool:${poolState} | DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"} | ${this.birdeye.budgetText()}`);
   }
   private rankText(c:Candidate){return Object.entries(c.trendingRanks).map(([k,v])=>`${k}#${v}`).join(",");}
   private priority(c:Candidate){return (c.sources.has("axiom")?3:0)+(c.sources.has("fomo")?3:0)+(c.sources.has("birdeye-trending")?2:0)+(c.sources.has("dex-boost-top")?1.5:0)+(c.sources.has("dex-boost")?1:0)+(c.sources.has("dex-profile")?0.5:0)+c.score/100;}
@@ -114,14 +114,16 @@ export class Scanner {
       const doBirdeye=this.birdeye.isCuAvailable() && index<config.birdeyeDeepCandidates && c.score>=config.birdeyeDeepMinScore;
       const age=Date.now()-c.firstSeenAt;
       const doRoute=(index<config.routeDeepCandidates && age>=Math.min(20_000,config.minObservationMs/2)) || c.score>=config.promoteScore;
+      const doHolder=this.birdeye.isCuAvailable() && index<config.birdeyeHolderCandidates && c.score>=config.birdeyeHolderMinScore;
       const doBundle=index<config.bundleDeepCandidates || c.score>=70;
 
       const marketPromise=doBirdeye?this.birdeye.snapshot(c.token.address,seed):Promise.resolve(seed);
       const bundlePromise=doBundle?bundleRisk(c.token.address):Promise.resolve({risk:undefined,status:"unknown" as const});
       const routePromise=doRoute?this.jupiter.canBuyAndSell(c.token.address):Promise.resolve({buy:false,sell:false,quality:undefined});
-      const [market,bundle,route]=await Promise.all([marketPromise,bundlePromise,routePromise]);
+      const holderPromise=doHolder?this.birdeye.holderStats(c.token.address):Promise.resolve({});
+      const [market,bundle,route,holder]=await Promise.all([marketPromise,bundlePromise,routePromise,holderPromise]);
 
-      const snap:Snapshot={at:Date.now(),...market,
+      const snap:Snapshot={at:Date.now(),...market,...holder,
         bundleRisk:bundle.risk,bundleStatus:doBundle?(bundle.status==="ok"?"ok":bundle.status==="error"?"error":"unknown"):"skipped",
         buyRoute:route.buy,sellRoute:route.sell,routeQuality:route.quality};
       c.snapshots.push(snap); if(c.snapshots.length>12)c.snapshots.shift();
@@ -135,7 +137,7 @@ export class Scanner {
         status:c.state==="READY"?"✅ READY":c.state==="DROPPED"?"❌ NO BUY":`⏳ ${c.state}`,reason:c.decisionReason,sources:[...c.sources],rankText:this.rankText(c),
         details:{buys1m:snap.buys1m,sells1m:snap.sells1m,buys5m:snap.buys5m,sells5m:snap.sells5m,volume1mUsd:snap.volume1mUsd,volume5mUsd:snap.volume5mUsd,
           liquidityUsd:snap.liquidityUsd,holderCount:snap.holderCount,uniqueWallet1m:snap.uniqueWallet1m,
-          top10HolderPct:snap.top10HolderPct,deep:`BE:${doBirdeye?"Y":"-"} B:${doBundle?"Y":"-"} R:${doRoute?"Y":"-"}`}});
+          top10HolderPct:snap.top10HolderPct,deep:`BE:${doBirdeye?"Y":"-"} H:${doHolder?"Y":"-"} B:${doBundle?"Y":"-"} R:${doRoute?"Y":"-"}`}});
       if(c.state==="READY")await this.onReady(c);
     }catch(e){log.warn(`[SCAN ERROR] ${c.token.name} ${c.token.address}: ${e instanceof Error?e.message:String(e)}`);}finally{c.collecting=false;}
   }

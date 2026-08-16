@@ -1,63 +1,49 @@
-# Broke Cat Bot v1.3.6 — CU Saver
+# Broke Cat Bot v1.4 — Full Data + Price Failsafe
 
-This update fixes the Birdeye Compute Unit drain without making Birdeye disappear from the strategy.
+This update combines the discovery-refill fix with richer Birdeye enrichment and a redundant SOL/USD oracle.
 
-## New data flow
+## Data flow
 
-**DEX Screener (always on)** → discover attention signals + bulk price/liquidity/volume/buys/sells → observe acceleration → **Birdeye only for scarce high-value checks** → Jupiter route → BUY / NO BUY.
+**DEX Screener always-on discovery/watch** → **Birdeye enrichment for promising candidates** → **Birdeye holder concentration for near-buy finalists** → **Jupiter route/execution**.
 
 ### What changed
 
-- DEX Screener latest token profiles + latest/top boosts are now the continuous no-key discovery layer.
-- DEX Screener continues to bulk-enrich up to 30 watchlist token addresses per request.
-- Birdeye New Listings is supplemental and defaults to once every 90 minutes.
-- Birdeye Trending defaults to once every 6 hours.
-- Birdeye Meme List is disabled by default because it costs extra CUs and overlaps with our other discovery.
-- Birdeye Token Overview only runs on the top 2 candidates **after** their DEX-built score reaches 65+.
-- Birdeye overview cache increased to 2 minutes.
-- A Birdeye `Compute units usage limit exceeded` response triggers a 6-hour Birdeye cooldown. The bot keeps scanning with DEX Screener instead of repeatedly throwing 400 errors.
-- Open-position price monitoring moved from Birdeye to DEX Screener. This removes repeated Birdeye overview calls while a trade is held.
-- SOL/USD used for position sizing and P/L is now read from a high-liquidity Solana SOL/USDC DEX Screener pair and cached for 60 seconds.
-- ntfy phone alerts, contract-address buy logs, current-trade heartbeat, score emojis, paper trades, and sell statuses remain.
+- DEX Screener still keeps the active candidate pool full and handles repetitive price/liquidity/volume/buy-sell monitoring.
+- Birdeye New Listings defaults to every 3 minutes and Trending every 5 minutes.
+- Birdeye Token Overview can enrich the top 4 candidates once their DEX-built score reaches 45+.
+- Birdeye holder concentration is reserved for the top 2 near-buy candidates at score 68+ and is cached for 5 minutes.
+- A local Birdeye budget defaults to 1,800 CU/hour so a paid allowance cannot be accidentally burned at the old rate.
+- Birdeye remote-quota cooldown remains: if the provider says the CU allowance is exhausted, DEX Screener keeps the bot scanning.
+- Scoring now uses Birdeye buy-vs-sell volume, unique wallets, liquidity quality, holder growth, and top-10 concentration when those fields are available.
 
-## Why this saves so many CUs
+## SOL/USD failsafe
 
-The prior version could repeatedly call Birdeye discovery and Token Overview while scanning and while monitoring positions. v1.3.6 makes DEX Screener the heartbeat and Birdeye a scarce premium check.
+Position sizing no longer depends on a single DEX Screener lookup:
 
-## Railway
+1. Jupiter SOL → USDC quote (primary)
+2. DEX Screener SOL/USD (fallback)
+3. Recent last-good cached SOL/USD for up to 5 minutes (last resort)
 
-No new API key is required. Existing variables still work. These CU Saver values are optional because these are already the defaults:
+A temporary DEX Screener SOL-price failure should therefore no longer produce `BUY FAILED: Could not read SOL/USD from DEX Screener` when Jupiter or a recent cached price is available.
+
+## Recommended Railway values
+
+The defaults are already built in, but these can be set explicitly:
 
 ```env
-DEX_DISCOVERY_INTERVAL_MS=30000
-DEX_CACHE_MS=8000
-BIRDEYE_SNAPSHOT_CACHE_MS=120000
-BIRDEYE_DEEP_CANDIDATES=2
-BIRDEYE_DEEP_MIN_SCORE=65
-BIRDEYE_NEW_INTERVAL_MS=5400000
-BIRDEYE_TRENDING_INTERVAL_MS=21600000
+DEX_DISCOVERY_INTERVAL_MS=15000
+BIRDEYE_CU_BUDGET_PER_HOUR=1800
+BIRDEYE_SNAPSHOT_CACHE_MS=90000
+BIRDEYE_DEEP_CANDIDATES=4
+BIRDEYE_DEEP_MIN_SCORE=45
+BIRDEYE_HOLDER_CANDIDATES=2
+BIRDEYE_HOLDER_MIN_SCORE=68
+BIRDEYE_HOLDER_CACHE_MS=300000
+BIRDEYE_NEW_INTERVAL_MS=180000
+BIRDEYE_TRENDING_INTERVAL_MS=300000
 BIRDEYE_MEME_INTERVAL_MS=0
-BIRDEYE_CU_COOLDOWN_MS=21600000
+SOL_USD_CACHE_MS=60000
+SOL_USD_STALE_MS=300000
 ```
 
-For testing keep:
-
-```env
-LIVE_TRADING=false
-```
-
-Your existing `BIRDEYE_API_KEY` can remain in Railway. If the current Birdeye monthly quota is already exhausted, v1.3.6 will automatically fall back to DEX Screener discovery/watch until Birdeye becomes usable again.
-
-## Important
-
-DEX Screener profiles/boosts are **attention signals**, not automatic buy signals. They only put coins into the candidate pool. The bot still requires its own runner score, data confidence, observation window, and Jupiter route checks before buying.
-
-
-## v1.3.6 Discovery Refill
-- Fixes `total-known > 0` while `active candidates=0`.
-- Rediscovered DROPPED tokens can re-enter a fresh observation after a 60s cooldown.
-- DEX discovery now takes a balanced slice from profiles, latest boosts, and top boosts.
-- DEX discovery default interval reduced to 15s.
-- Keeps a target of at least 10 active candidates when the feeds can supply them.
-- Old dropped candidates are pruned after 15 minutes so the known-token map does not grow forever.
-- Birdeye CU Saver behavior is unchanged.
+Existing keys and wallet variables do not change. Keep `LIVE_TRADING=false` until the new logs show healthy discovery, Birdeye enrichment, route checks, and paper buys/sells.

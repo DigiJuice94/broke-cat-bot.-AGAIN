@@ -132,6 +132,11 @@ export class DexScreener {
     return out;
   }
 
+  getCachedSolPrice(maxAgeMs = config.solUsdStaleMs): number | undefined {
+    if (!this.solUsdCache || Date.now()-this.solUsdCache.at > maxAgeMs) return undefined;
+    return this.solUsdCache.value;
+  }
+
   /** Free SOL/USD fallback so position sizing/exits do not consume Birdeye CUs. */
   async solPriceUsd(): Promise<number> {
     if (this.solUsdCache && Date.now()-this.solUsdCache.at < 60_000) return this.solUsdCache.value;

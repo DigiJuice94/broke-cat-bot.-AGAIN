@@ -13,12 +13,16 @@ const bool = (key: string, fallback: boolean) => {
 export const config = {
   birdeyeApiKey: process.env.BIRDEYE_API_KEY ?? "",
   birdeyeMinIntervalMs: num("BIRDEYE_MIN_INTERVAL_MS", 1_100),
-  birdeyeSnapshotCacheMs: num("BIRDEYE_SNAPSHOT_CACHE_MS", 120_000),
-  birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 2),
-  birdeyeDeepMinScore: num("BIRDEYE_DEEP_MIN_SCORE", 65),
+  birdeyeSnapshotCacheMs: num("BIRDEYE_SNAPSHOT_CACHE_MS", 90_000),
+  birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 4),
+  birdeyeDeepMinScore: num("BIRDEYE_DEEP_MIN_SCORE", 45),
+  birdeyeHolderCandidates: num("BIRDEYE_HOLDER_CANDIDATES", 2),
+  birdeyeHolderMinScore: num("BIRDEYE_HOLDER_MIN_SCORE", 68),
+  birdeyeHolderCacheMs: num("BIRDEYE_HOLDER_CACHE_MS", 300_000),
+  birdeyeCuBudgetPerHour: num("BIRDEYE_CU_BUDGET_PER_HOUR", 1_800),
   birdeyeCuCooldownMs: num("BIRDEYE_CU_COOLDOWN_MS", 21_600_000),
-  birdeyeNewIntervalMs: num("BIRDEYE_NEW_INTERVAL_MS", 5_400_000),
-  birdeyeTrendingIntervalMs: num("BIRDEYE_TRENDING_INTERVAL_MS", 21_600_000),
+  birdeyeNewIntervalMs: num("BIRDEYE_NEW_INTERVAL_MS", 180_000),
+  birdeyeTrendingIntervalMs: num("BIRDEYE_TRENDING_INTERVAL_MS", 300_000),
   birdeyeMemeIntervalMs: num("BIRDEYE_MEME_INTERVAL_MS", 0),
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
@@ -51,6 +55,8 @@ export const config = {
   minDataConfidence: num("MIN_DATA_CONFIDENCE", 70),
   minPositionUsd: num("MIN_POSITION_USD", 2),
   solFeeReserve: num("SOL_FEE_RESERVE", 0.015),
+  solUsdCacheMs: num("SOL_USD_CACHE_MS", 60_000),
+  solUsdStaleMs: num("SOL_USD_STALE_MS", 300_000),
   takeProfitPct: num("TAKE_PROFIT_PCT", 45),
   stopLossPct: num("STOP_LOSS_PCT", 18),
   trailingStopPct: num("TRAILING_STOP_PCT", 12),
@@ -68,4 +74,5 @@ export const config = {
 };
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
+export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS_PER_SOL = 1_000_000_000;

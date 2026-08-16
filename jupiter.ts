@@ -1,4 +1,4 @@
-import { config, SOL_MINT } from "./config.ts";
+import { config, SOL_MINT, USDC_MINT, LAMPORTS_PER_SOL } from "./config.ts";
 import { SwapOrder } from "./types.ts";
 import { getJson, postJson } from "./http.ts";
 import { WalletService } from "./wallet.ts";
@@ -7,6 +7,7 @@ const BASE = "https://api.jup.ag/swap/v2";
 const headers = () => ({ "x-api-key": config.jupiterApiKey, accept: "application/json" });
 
 export class Jupiter {
+  private solUsdCache?: { at:number; value:number };
   constructor(private wallet: WalletService) {}
 
   async order(inputMint: string, outputMint: string, amountRaw: bigint, withTransaction: boolean): Promise<SwapOrder> {
@@ -28,6 +29,21 @@ export class Jupiter {
         return { buy: true, sell: back > 0n, quality: Math.max(0, Math.min(100, quality)), buyOutRaw: out };
       } catch { return { buy: true, sell: false, quality: 20, buyOutRaw: out }; }
     } catch { return { buy: false, sell: false, quality: 0 }; }
+  }
+
+  /** Primary SOL/USD oracle: derive USD from a real Jupiter SOL→USDC route. */
+  async solPriceUsd(): Promise<number> {
+    if (this.solUsdCache && Date.now() - this.solUsdCache.at < config.solUsdCacheMs) return this.solUsdCache.value;
+    const sampleLamports = BigInt(Math.floor(0.1 * LAMPORTS_PER_SOL));
+    const q = await this.order(SOL_MINT, USDC_MINT, sampleLamports, false);
+    const outRaw = BigInt(q.outAmount || "0");
+    if (outRaw <= 0n) throw new Error("Jupiter SOL/USDC quote unavailable");
+    const usdc = Number(outRaw) / 1_000_000;
+    const sol = Number(sampleLamports) / LAMPORTS_PER_SOL;
+    const price = usdc / sol;
+    if (!Number.isFinite(price) || price <= 0) throw new Error("Invalid Jupiter SOL/USD price");
+    this.solUsdCache = { at: Date.now(), value: price };
+    return price;
   }
 
   async swap(inputMint: string, outputMint: string, amountRaw: bigint): Promise<{signature:string;inRaw:bigint;outRaw:bigint}> {

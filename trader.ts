@@ -14,15 +14,40 @@ export class Trader {
   private lastIdleStatusAt = 0;
   private notifier = new Notifier();
   private dex = new DexScreener();
+  private lastGoodSolUsd?: {at:number;value:number;source:string};
 
   constructor(private wallet: WalletService, private jupiter: Jupiter) {}
+
+  private async solPriceUsd(): Promise<number> {
+    if (this.lastGoodSolUsd && Date.now()-this.lastGoodSolUsd.at < config.solUsdCacheMs) return this.lastGoodSolUsd.value;
+    try {
+      const value=await this.jupiter.solPriceUsd();
+      this.lastGoodSolUsd={at:Date.now(),value,source:"Jupiter"};
+      log.info(`[SIZING] SOL/USD $${value.toFixed(2)} via Jupiter`);
+      return value;
+    } catch (jErr) {
+      try {
+        const value=await this.dex.solPriceUsd();
+        this.lastGoodSolUsd={at:Date.now(),value,source:"DEX Screener"};
+        log.warn(`[SIZING] Jupiter SOL/USD unavailable; using DEX Screener $${value.toFixed(2)}`);
+        return value;
+      } catch (dErr) {
+        const cached=this.lastGoodSolUsd ?? (this.dex.getCachedSolPrice(config.solUsdStaleMs) ? {at:Date.now(),value:this.dex.getCachedSolPrice(config.solUsdStaleMs)!,source:"DEX cache"} : undefined);
+        if (cached && Date.now()-cached.at < config.solUsdStaleMs) {
+          log.warn(`[SIZING] live SOL/USD sources unavailable; using recent cached $${cached.value.toFixed(2)}`);
+          return cached.value;
+        }
+        throw new Error(`SOL/USD unavailable (Jupiter: ${jErr instanceof Error?jErr.message:String(jErr)}; DEX: ${dErr instanceof Error?dErr.message:String(dErr)})`);
+      }
+    }
+  }
 
   async buy(c: Candidate) {
     if (this.busy.has(c.token.address) || this.positions.has(c.token.address)) return;
     this.busy.add(c.token.address);
     try {
       const snap = c.snapshots.at(-1)!;
-      const [solBalance, solUsd] = await Promise.all([this.wallet.solBalance(), this.dex.solPriceUsd()]);
+      const [solBalance, solUsd] = await Promise.all([this.wallet.solBalance(), this.solPriceUsd()]);
       const spendableSol = Math.max(0, solBalance - config.solFeeReserve);
       const spendableUsd = spendableSol * solUsd;
       const usd = choosePositionUsd({
@@ -101,7 +126,7 @@ export class Trader {
       if (amount <= 0n) { this.positions.delete(p.mint); return; }
       const result = await this.jupiter.swap(p.mint, SOL_MINT, amount);
       const solOut = Number(result.outRaw) / LAMPORTS_PER_SOL;
-      const solUsd = await this.dex.solPriceUsd();
+      const solUsd = await this.solPriceUsd();
       const outUsd = solOut * solUsd;
       const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
       this.positions.delete(p.mint);
