@@ -1,4 +1,4 @@
-# Broke Cat Bot v1.3.5 — CU Saver
+# Broke Cat Bot v1.3.6 — CU Saver
 
 This update fixes the Birdeye Compute Unit drain without making Birdeye disappear from the strategy.
 
@@ -22,7 +22,7 @@ This update fixes the Birdeye Compute Unit drain without making Birdeye disappea
 
 ## Why this saves so many CUs
 
-The prior version could repeatedly call Birdeye discovery and Token Overview while scanning and while monitoring positions. v1.3.5 makes DEX Screener the heartbeat and Birdeye a scarce premium check.
+The prior version could repeatedly call Birdeye discovery and Token Overview while scanning and while monitoring positions. v1.3.6 makes DEX Screener the heartbeat and Birdeye a scarce premium check.
 
 ## Railway
 
@@ -46,8 +46,18 @@ For testing keep:
 LIVE_TRADING=false
 ```
 
-Your existing `BIRDEYE_API_KEY` can remain in Railway. If the current Birdeye monthly quota is already exhausted, v1.3.5 will automatically fall back to DEX Screener discovery/watch until Birdeye becomes usable again.
+Your existing `BIRDEYE_API_KEY` can remain in Railway. If the current Birdeye monthly quota is already exhausted, v1.3.6 will automatically fall back to DEX Screener discovery/watch until Birdeye becomes usable again.
 
 ## Important
 
 DEX Screener profiles/boosts are **attention signals**, not automatic buy signals. They only put coins into the candidate pool. The bot still requires its own runner score, data confidence, observation window, and Jupiter route checks before buying.
+
+
+## v1.3.6 Discovery Refill
+- Fixes `total-known > 0` while `active candidates=0`.
+- Rediscovered DROPPED tokens can re-enter a fresh observation after a 60s cooldown.
+- DEX discovery now takes a balanced slice from profiles, latest boosts, and top boosts.
+- DEX discovery default interval reduced to 15s.
+- Keeps a target of at least 10 active candidates when the feeds can supply them.
+- Old dropped candidates are pruned after 15 minutes so the known-token map does not grow forever.
+- Birdeye CU Saver behavior is unchanged.

@@ -28,29 +28,43 @@ export class DexScreener {
    * intentionally used as attention signals, not automatic buy signals.
    */
   async discover(): Promise<DiscoveredToken[]> {
-    const feeds: Array<{url:string; source:DiscoveredToken["source"]}> = [
-      { url:"https://api.dexscreener.com/token-profiles/latest/v1", source:"dex-profile" },
-      { url:"https://api.dexscreener.com/token-boosts/latest/v1", source:"dex-boost" },
-      { url:"https://api.dexscreener.com/token-boosts/top/v1", source:"dex-boost-top" },
+    const feeds: Array<{url:string; source:DiscoveredToken["source"]; cap:number}> = [
+      { url:"https://api.dexscreener.com/token-profiles/latest/v1", source:"dex-profile", cap:10 },
+      { url:"https://api.dexscreener.com/token-boosts/latest/v1", source:"dex-boost", cap:10 },
+      { url:"https://api.dexscreener.com/token-boosts/top/v1", source:"dex-boost-top", cap:10 },
     ];
     const settled = await Promise.allSettled(feeds.map(f => getJson(f.url, {}, config.dexTimeoutMs)));
-    const seen = new Set<string>();
-    const tokens: DiscoveredToken[] = [];
+    const byAddress = new Map<string, DiscoveredToken>();
+
+    // Take a balanced slice from every feed. Previously the first feed could fill
+    // the entire 30-token batch, starving boosted/trending candidates.
     for (let fi=0; fi<settled.length; fi++) {
       const r = settled[fi]; if (r.status !== "fulfilled") continue;
       const rows = Array.isArray(r.value) ? r.value : [];
-      let rank = 0;
+      let rank = 0, accepted = 0;
       for (const row of rows) {
         if (row?.chainId !== "solana") continue;
-        const address = row?.tokenAddress; if (!address || address === SOL_MINT || seen.has(address)) continue;
-        seen.add(address); rank++;
-        tokens.push({ address, name:"Unknown", symbol:"?", source:feeds[fi].source, rank, discoveredAt:Date.now() });
-        if (tokens.length >= 30) break;
+        const address = row?.tokenAddress;
+        if (!address || address === SOL_MINT) continue;
+        rank++;
+        const existing = byAddress.get(address);
+        if (existing) {
+          // Keep the stronger feed as the canonical source; Scanner will still
+          // see rediscovery frequently enough to re-watch momentum.
+          const strength = (src:string) => src === "dex-boost-top" ? 3 : src === "dex-boost" ? 2 : 1;
+          if (strength(feeds[fi].source) > strength(existing.source)) {
+            existing.source = feeds[fi].source;
+            existing.rank = rank;
+          }
+          continue;
+        }
+        byAddress.set(address, { address, name:"Unknown", symbol:"?", source:feeds[fi].source, rank, discoveredAt:Date.now() });
+        accepted++;
+        if (accepted >= feeds[fi].cap) break;
       }
-      if (tokens.length >= 30) break;
     }
 
-    // Hydrate names/symbols and market seed in one DEX batch call.
+    const tokens = [...byAddress.values()].slice(0, 30);
     if (tokens.length) {
       const enriched = await this.batch(tokens.map(t=>t.address));
       for (const t of tokens) {

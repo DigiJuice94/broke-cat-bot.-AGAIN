@@ -53,6 +53,8 @@ export interface Candidate {
   state: "WATCHING" | "DEVELOPING" | "READY" | "BOUGHT" | "DROPPED" | "FAILED";
   decisionReason?: string;
   collecting: boolean;
+  lastDroppedAt?: number;
+  watchCycles?: number;
 }
 
 export interface Position {

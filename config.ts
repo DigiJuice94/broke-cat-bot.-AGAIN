@@ -30,7 +30,10 @@ export const config = {
 
   dexCacheMs: num("DEX_CACHE_MS", 8_000),
   dexTimeoutMs: num("DEX_TIMEOUT_MS", 6_000),
-  dexDiscoveryIntervalMs: num("DEX_DISCOVERY_INTERVAL_MS", 30_000),
+  dexDiscoveryIntervalMs: num("DEX_DISCOVERY_INTERVAL_MS", 15_000),
+  minActiveCandidates: num("MIN_ACTIVE_CANDIDATES", 10),
+  rewatchCooldownMs: num("REWATCH_COOLDOWN_MS", 60_000),
+  knownRetentionMs: num("KNOWN_RETENTION_MS", 900_000),
 
   routeDeepCandidates: num("ROUTE_DEEP_CANDIDATES", 4),
   bundleDeepCandidates: num("BUNDLE_DEEP_CANDIDATES", 3),

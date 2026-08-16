@@ -18,20 +18,53 @@ export class Scanner {
   private dex = new DexScreener();
   constructor(private birdeye: Birdeye, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) {}
 
+  private activeCount() {
+    return [...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).length;
+  }
+
   private add(t: DiscoveredToken) {
+    const now = Date.now();
     const existing = this.candidates.get(t.address);
     if (existing) {
-      existing.sources.add(t.source); existing.lastSeenAt=Date.now();
+      const previousSeen = existing.lastSeenAt;
+      existing.sources.add(t.source); existing.lastSeenAt=now;
       if (t.rank != null) existing.trendingRanks[t.source]=t.rank;
       if (existing.token.name==="Unknown" && t.name!=="Unknown") existing.token.name=t.name;
       if (existing.token.symbol==="?" && t.symbol!=="?") existing.token.symbol=t.symbol;
       if (existing.token.decimals==null && t.decimals!=null) existing.token.decimals=t.decimals;
       if (t.seed) existing.token.seed={...(existing.token.seed??{}),...Object.fromEntries(Object.entries(t.seed).filter(([,v])=>v!==undefined))};
+
+      // Critical starvation fix: a token that was dropped can become interesting
+      // again. If DEX/Birdeye rediscover it after a cooldown and there is room in
+      // the watch pool, start a fresh observation window instead of leaving it
+      // permanently DROPPED.
+      if (existing.state === "DROPPED" && this.activeCount() < config.maxActiveCandidates) {
+        const droppedAt = existing.lastDroppedAt ?? previousSeen;
+        const cooldown = this.activeCount() < config.minActiveCandidates ? Math.min(config.rewatchCooldownMs, 15_000) : config.rewatchCooldownMs;
+        if (now - droppedAt >= cooldown) {
+          existing.firstSeenAt = now;
+          existing.snapshots = [];
+          existing.score = 0;
+          existing.dataConfidence = 0;
+          existing.state = "WATCHING";
+          existing.decisionReason = "rediscovered — fresh observation";
+          existing.collecting = false;
+          existing.watchCycles = (existing.watchCycles ?? 1) + 1;
+          log.info(`[REWATCH] ${existing.token.name} ($${existing.token.symbol}) | fresh 30-90s observation | source:${t.source}`);
+        }
+      }
       return;
     }
-    if ([...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).length>=config.maxActiveCandidates) return;
-    this.candidates.set(t.address,{token:t,firstSeenAt:Date.now(),lastSeenAt:Date.now(),sources:new Set([t.source]),
-      trendingRanks:t.rank==null?{}:{[t.source]:t.rank},snapshots:[],score:0,dataConfidence:0,state:"WATCHING",collecting:false});
+    if (this.activeCount()>=config.maxActiveCandidates) return;
+    this.candidates.set(t.address,{token:t,firstSeenAt:now,lastSeenAt:now,sources:new Set([t.source]),
+      trendingRanks:t.rank==null?{}:{[t.source]:t.rank},snapshots:[],score:0,dataConfidence:0,state:"WATCHING",collecting:false,watchCycles:1});
+  }
+
+  private pruneKnown() {
+    const now = Date.now();
+    for (const [address,c] of this.candidates) {
+      if (["DROPPED","FAILED"].includes(c.state) && now-c.lastSeenAt > config.knownRetentionMs) this.candidates.delete(address);
+    }
   }
 
   private async birdeyeFeed(label:string, due:boolean, fn:()=>Promise<DiscoveredToken[]>) {
@@ -64,8 +97,10 @@ export class Scanner {
       const memeDue=now-this.lastBirdeyeMeme>=config.birdeyeMemeIntervalMs;
       if(memeDue){this.lastBirdeyeMeme=now; await this.birdeyeFeed("BIRDEYE MEME",true,()=>this.birdeye.memeMomentum());}
     }
-    const active=[...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).length;
-    log.info(`[DISCOVERY] active candidates=${active} total-known=${this.candidates.size} | DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"}`);
+    this.pruneKnown();
+    const active=this.activeCount();
+    const poolState=active<config.minActiveCandidates?"REFILLING":"HEALTHY";
+    log.info(`[DISCOVERY] active candidates=${active} target≥${config.minActiveCandidates} total-known=${this.candidates.size} pool:${poolState} | DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"}`);
   }
   private rankText(c:Candidate){return Object.entries(c.trendingRanks).map(([k,v])=>`${k}#${v}`).join(",");}
   private priority(c:Candidate){return (c.sources.has("axiom")?3:0)+(c.sources.has("fomo")?3:0)+(c.sources.has("birdeye-trending")?2:0)+(c.sources.has("dex-boost-top")?1.5:0)+(c.sources.has("dex-boost")?1:0)+(c.sources.has("dex-profile")?0.5:0)+c.score/100;}
@@ -92,7 +127,7 @@ export class Scanner {
       c.snapshots.push(snap); if(c.snapshots.length>12)c.snapshots.shift();
       const scored=scoreCandidate(c); c.score=scored.score;c.dataConfidence=scored.confidence;c.decisionReason=scored.reason;
       if(age>=config.minObservationMs&&c.score>=config.buyScore&&c.dataConfidence>=config.minDataConfidence&&snap.buyRoute&&(!config.requireSellRoute||snap.sellRoute))c.state="READY";
-      else if(age>=config.maxObservationMs){c.state="DROPPED";c.decisionReason=`NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;}
+      else if(age>=config.maxObservationMs){c.state="DROPPED";c.lastDroppedAt=Date.now();c.decisionReason=`NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;}
       else if(c.score>=config.promoteScore)c.state="DEVELOPING"; else c.state="WATCHING";
 
       if(snap.dataErrors?.length&&snap.priceUsd==null&&!snap.dataErrors.some(x=>x.includes("cooldown")))log.warn(`[DATA] ${c.token.name} ($${c.token.symbol}) | ${snap.dataErrors.join(" | ")}`);
