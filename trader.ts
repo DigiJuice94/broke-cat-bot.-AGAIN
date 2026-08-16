@@ -44,7 +44,7 @@ export class Trader {
           openedAt:Date.now(),highPriceUsd:entryPrice,scoreAtBuy:c.score,confidenceAtBuy:c.dataConfidence,paper:true
         });
         c.state = "BOUGHT";
-        log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🧪 PAPER BUY",reason:`would buy $${usd.toFixed(2)} (${sol.toFixed(5)} SOL) | now tracking paper position` });
+        log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🧪 PAPER BUY",reason:`would buy $${usd.toFixed(2)} (${sol.toFixed(5)} SOL) | Contract:${c.token.address} | now tracking paper position` });
         return;
       }
 
@@ -59,7 +59,7 @@ export class Trader {
         signature:result.signature,scoreAtBuy:c.score,confidenceAtBuy:c.dataConfidence,paper:false
       });
       c.state = "BOUGHT";
-      log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🟢 BOUGHT",reason:`$${usd.toFixed(2)} | tx ${result.signature}` });
+      log.scan({ name:c.token.name,symbol:c.token.symbol,priceUsd:snap.priceUsd,score:c.score,confidence:c.dataConfidence,status:"🟢 BOUGHT",reason:`$${usd.toFixed(2)} | Contract:${c.token.address} | tx ${result.signature}` });
     } catch (e) {
       c.state = "FAILED"; c.decisionReason = `BUY FAILED: ${e instanceof Error ? e.message : String(e)}`;
       log.error(`[BUY FAILED] ${c.token.name}`, c.decisionReason);

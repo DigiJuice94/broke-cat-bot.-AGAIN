@@ -1,3 +1,7 @@
+# v1.3.3 Buy Contract Address
+
+Every PAPER BUY and live BOUGHT log now prints the exact Solana token mint/contract address. Copy that address into DEX Screener, Birdeye, Axiom, Jupiter, or a Solana explorer to find the exact token. No scoring, scanner, sizing, or sell logic was changed.
+
 ## v1.3.2 Sell Status
 - Successful completed exits log `💰 SOLD`.
 - Failed exits log `⚠️ SELL FAILED`.
