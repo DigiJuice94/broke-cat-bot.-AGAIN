@@ -12,16 +12,30 @@ const bool = (key: string, fallback: boolean) => {
 
 export const config = {
   birdeyeApiKey: process.env.BIRDEYE_API_KEY ?? "",
+  birdeyeMinIntervalMs: num("BIRDEYE_MIN_INTERVAL_MS", 1_100),
+  birdeyeSnapshotCacheMs: num("BIRDEYE_SNAPSHOT_CACHE_MS", 30_000),
+  birdeyeDeepCandidates: num("BIRDEYE_DEEP_CANDIDATES", 6),
+
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
   heliusApiKey: process.env.HELIUS_API_KEY ?? "",
   heliusTimeoutMs: num("HELIUS_TIMEOUT_MS", 8_000),
-  heliusHolderCacheMs: num("HELIUS_HOLDER_CACHE_MS", 30_000),
-  heliusActivityLimit: num("HELIUS_ACTIVITY_LIMIT", 100),
-  heliusUniqueWalletMinTx: num("HELIUS_UNIQUE_WALLET_MIN_TX", 8),
+  heliusMinIntervalMs: num("HELIUS_MIN_INTERVAL_MS", 175),
+  heliusHolderCacheMs: num("HELIUS_HOLDER_CACHE_MS", 60_000),
+  heliusActivityCacheMs: num("HELIUS_ACTIVITY_CACHE_MS", 15_000),
+  heliusActivityLimit: num("HELIUS_ACTIVITY_LIMIT", 80),
+  heliusUniqueWalletMinTx: num("HELIUS_UNIQUE_WALLET_MIN_TX", 12),
+  heliusDeepCandidates: num("HELIUS_DEEP_CANDIDATES", 4),
+
+  dexCacheMs: num("DEX_CACHE_MS", 8_000),
+  dexTimeoutMs: num("DEX_TIMEOUT_MS", 6_000),
+
+  routeDeepCandidates: num("ROUTE_DEEP_CANDIDATES", 4),
+  bundleDeepCandidates: num("BUNDLE_DEEP_CANDIDATES", 3),
+
   rpcUrl: process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
   privateKey: process.env.BS58_PRIVATE_KEY ?? "",
   liveTrading: bool("LIVE_TRADING", false),
-  discoveryIntervalMs: num("DISCOVERY_INTERVAL_MS", 12_000),
+  discoveryIntervalMs: num("DISCOVERY_INTERVAL_MS", 15_000),
   observationTickMs: num("OBSERVATION_TICK_MS", 10_000),
   minObservationMs: num("MIN_OBSERVATION_MS", 30_000),
   maxObservationMs: num("MAX_OBSERVATION_MS", 90_000),

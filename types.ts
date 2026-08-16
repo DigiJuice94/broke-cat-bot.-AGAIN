@@ -22,21 +22,26 @@ export interface Snapshot {
   volume5mUsd?: number;
   buys1m?: number;
   sells1m?: number;
+  buys5m?: number;
+  sells5m?: number;
   trades1m?: number;
   uniqueWallet1m?: number;
   chainTx10s?: number;
   chainTx30s?: number;
   chainTx1m?: number;
-  heliusStatus?: "ok" | "partial" | "off" | "error";
+  heliusStatus?: "ok" | "partial" | "off" | "error" | "skipped";
   buyVolume1mUsd?: number;
   sellVolume1mUsd?: number;
   priceChange1mPct?: number;
+  priceChange5mPct?: number;
   top10HolderPct?: number;
   bundleRisk?: number;
-  bundleStatus: "ok" | "unknown" | "pending" | "error";
+  bundleStatus: "ok" | "unknown" | "pending" | "error" | "skipped";
   buyRoute: boolean;
   sellRoute: boolean;
   routeQuality?: number;
+  dexPairAddress?: string;
+  dexId?: string;
   dataErrors?: string[];
 }
 

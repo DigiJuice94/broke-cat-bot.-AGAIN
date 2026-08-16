@@ -1,16 +1,18 @@
 import { config, SOL_MINT } from "./config.ts";
 import { DiscoveredToken, Snapshot } from "./types.ts";
 import { getJson } from "./http.ts";
+import { RequestQueue } from "./requestQueue.ts";
 
 const BASE = "https://public-api.birdeye.so";
 const headers = () => ({ "X-API-KEY": config.birdeyeApiKey, "x-chain": "solana", accept: "application/json" });
+
+interface CacheEntry { at: number; value: Partial<Snapshot> }
 
 function arr(v: any): any[] {
   if (Array.isArray(v)) return v;
   for (const k of ["tokens", "items", "list", "data"]) if (Array.isArray(v?.[k])) return v[k];
   return [];
 }
-
 function n(...xs: any[]): number | undefined {
   for (const x of xs) {
     if (x === null || x === undefined || x === "") continue;
@@ -19,83 +21,75 @@ function n(...xs: any[]): number | undefined {
   }
   return undefined;
 }
-
 function tokenFrom(x: any, source: DiscoveredToken["source"], rank?: number): DiscoveredToken | null {
   const address = x.address ?? x.tokenAddress ?? x.mint ?? x.token_address;
   if (!address || address === SOL_MINT) return null;
   return {
-    address,
-    name: x.name ?? x.tokenName ?? "Unknown",
-    symbol: x.symbol ?? x.tokenSymbol ?? "?",
-    decimals: n(x.decimals),
-    source,
-    rank,
-    discoveredAt: Date.now(),
+    address, name: x.name ?? x.tokenName ?? "Unknown", symbol: x.symbol ?? x.tokenSymbol ?? "?",
+    decimals: n(x.decimals), source, rank, discoveredAt: Date.now(),
     listedAt: n(x.creationTime, x.creation_time, x.listingUnixTime, x.listingTime, x.recent_listing_time),
     seed: {
-      priceUsd: n(x.price, x.priceUsd, x.price_usd),
-      liquidityUsd: n(x.liquidity, x.liquidityUsd, x.liquidity_usd),
-      marketCapUsd: n(x.marketCap, x.market_cap, x.mc),
-      volume1mUsd: n(x.v1mUSD, x.volume1mUSD, x.volume_1m_usd),
-      volume5mUsd: n(x.v5mUSD, x.volume5mUSD, x.volume_5m_usd),
-      buys1m: n(x.buy1m, x.buy_1m, x.buys1m),
-      sells1m: n(x.sell1m, x.sell_1m, x.sells1m),
-      priceChange1mPct: n(x.priceChange1mPercent, x.price_change_1m_percent, x.priceChange1m)
+      priceUsd: n(x.price, x.priceUsd, x.price_usd), liquidityUsd: n(x.liquidity, x.liquidityUsd, x.liquidity_usd),
+      marketCapUsd: n(x.marketCap, x.market_cap, x.mc), volume1mUsd: n(x.v1mUSD, x.volume1mUSD, x.volume_1m_usd),
+      volume5mUsd: n(x.v5mUSD, x.volume5mUSD, x.volume_5m_usd), buys1m: n(x.buy1m, x.buy_1m, x.buys1m),
+      sells1m: n(x.sell1m, x.sell_1m, x.sells1m), priceChange1mPct: n(x.priceChange1mPercent, x.price_change_1m_percent, x.priceChange1m)
     }
   };
 }
-
 function errText(e: unknown): string {
-  const s = e instanceof Error ? e.message : String(e);
-  return s.replace(/\s+/g, " ").slice(0, 220);
+  return (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 220);
 }
 
 export class Birdeye {
+  private queue = new RequestQueue("Birdeye", config.birdeyeMinIntervalMs, 2);
+  private cache = new Map<string, CacheEntry>();
+  private get(url: string, timeout = 8_000) { return this.queue.schedule(() => getJson(url, headers(), timeout)); }
+
   async newListings(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
-    const j = await getJson(`${BASE}/defi/v2/tokens/new_listing?limit=20&meme_platform_enabled=true`, headers());
+    const j = await this.get(`${BASE}/defi/v2/tokens/new_listing?limit=20&meme_platform_enabled=true`);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-new", i + 1)).filter(Boolean) as DiscoveredToken[];
   }
-
   async trending(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
-    const j = await getJson(`${BASE}/defi/token_trending?sort_by=rank&sort_type=asc&offset=0&limit=20`, headers());
+    const j = await this.get(`${BASE}/defi/token_trending?sort_by=rank&sort_type=asc&offset=0&limit=20`);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-trending", n(x.rank, i + 1))).filter(Boolean) as DiscoveredToken[];
   }
-
   async memeMomentum(): Promise<DiscoveredToken[]> {
     if (!config.birdeyeApiKey) return [];
     const q = new URLSearchParams({ sort_by: "volume_1m_usd", sort_type: "desc", source: "all", offset: "0", limit: "20" });
-    const j = await getJson(`${BASE}/defi/v3/token/meme/list?${q}`, headers());
+    const j = await this.get(`${BASE}/defi/v3/token/meme/list?${q}`);
     return arr(j?.data ?? j).map((x, i) => tokenFrom(x, "birdeye-meme", i + 1)).filter(Boolean) as DiscoveredToken[];
   }
 
   async snapshot(address: string, seed?: Partial<Snapshot>): Promise<Partial<Snapshot>> {
     if (!config.birdeyeApiKey) return { ...seed, dataErrors: ["Birdeye key missing"] };
-
-    // Token Overview is the primary enrichment call: price, liquidity, market cap,
-    // holder count, volume, buy/sell counts and price changes are all returned here.
-    const [overviewResult, priceResult] = await Promise.allSettled([
-      getJson(`${BASE}/defi/token_overview?address=${encodeURIComponent(address)}&frames=1m,5m`, headers(), 9_000),
-      getJson(`${BASE}/defi/price?address=${encodeURIComponent(address)}&include_liquidity=true`, headers(), 7_000)
-    ]);
+    const cached = this.cache.get(address);
+    if (cached && Date.now() - cached.at < config.birdeyeSnapshotCacheMs) return { ...seed, ...cached.value };
 
     const errors: string[] = [];
-    const o = overviewResult.status === "fulfilled" ? (overviewResult.value?.data ?? overviewResult.value ?? {}) : {};
-    const p = priceResult.status === "fulfilled" ? (priceResult.value?.data ?? priceResult.value ?? {}) : {};
-    if (overviewResult.status === "rejected") errors.push(`overview: ${errText(overviewResult.reason)}`);
-    if (priceResult.status === "rejected") errors.push(`price: ${errText(priceResult.reason)}`);
+    let o: any = {};
+    try {
+      const j = await this.get(`${BASE}/defi/token_overview?address=${encodeURIComponent(address)}&frames=1m,5m`, 9_000);
+      o = j?.data ?? j ?? {};
+    } catch (e) { errors.push(`overview: ${errText(e)}`); }
 
-    const out: Partial<Snapshot> = {
-      ...seed,
-      priceUsd: n(o.price, p.value, p.price, p.priceUsd, seed?.priceUsd),
-      liquidityUsd: n(o.liquidity, p.liquidity, p.liquidityUsd, seed?.liquidityUsd),
+    let priceFallback: any = {};
+    if (n(o.price, seed?.priceUsd) == null) {
+      try {
+        const j = await this.get(`${BASE}/defi/price?address=${encodeURIComponent(address)}&include_liquidity=true`, 7_000);
+        priceFallback = j?.data ?? j ?? {};
+      } catch (e) { errors.push(`price: ${errText(e)}`); }
+    }
+
+    const value: Partial<Snapshot> = {
+      priceUsd: n(o.price, priceFallback.value, priceFallback.price, seed?.priceUsd),
+      liquidityUsd: n(o.liquidity, priceFallback.liquidity, seed?.liquidityUsd),
       marketCapUsd: n(o.marketCap, o.market_cap, o.mc, seed?.marketCapUsd),
       holderCount: n(o.holder, o.holderCount, o.holders, seed?.holderCount),
       volume1mUsd: n(o.v1mUSD, o.volume1mUSD, o.volume_1m_usd, seed?.volume1mUsd),
       volume5mUsd: n(o.v5mUSD, o.volume5mUSD, o.volume_5m_usd, seed?.volume5mUsd),
-      buys1m: n(o.buy1m, o.buy_1m, o.buys1m, seed?.buys1m),
-      sells1m: n(o.sell1m, o.sell_1m, o.sells1m, seed?.sells1m),
+      buys1m: n(o.buy1m, o.buy_1m, o.buys1m, seed?.buys1m), sells1m: n(o.sell1m, o.sell_1m, o.sells1m, seed?.sells1m),
       trades1m: n(o.trade1m, o.trade_1m, o.trades1m, seed?.trades1m),
       priceChange1mPct: n(o.priceChange1mPercent, o.price_change_1m_percent, o.priceChange1m, seed?.priceChange1mPct),
       uniqueWallet1m: n(o.uniqueWallet1m, o.unique_wallet_1m, seed?.uniqueWallet1m),
@@ -103,12 +97,12 @@ export class Birdeye {
       sellVolume1mUsd: n(o.vSell1mUSD, o.sellVolume1mUSD, o.sell_volume_1m_usd, seed?.sellVolume1mUsd),
       dataErrors: errors
     };
-
-    return out;
+    this.cache.set(address, { at: Date.now(), value });
+    return { ...seed, ...value };
   }
 
   async solPriceUsd(): Promise<number> {
-    const j = await getJson(`${BASE}/defi/price?address=${SOL_MINT}`, headers());
+    const j = await this.get(`${BASE}/defi/price?address=${SOL_MINT}`);
     const d = j?.data ?? j;
     const price = n(d?.value, d?.price, d?.priceUsd);
     if (!price) throw new Error("Could not read SOL price from Birdeye");
