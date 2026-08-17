@@ -48,6 +48,14 @@ export class Jupiter {
     return price;
   }
 
+  /** Quote what the full token amount can actually be sold for right now. No transaction is built. */
+  async sellQuoteSol(mint: string, amountRaw: bigint): Promise<{outRaw:bigint; outSol:number}> {
+    if (amountRaw <= 0n) return { outRaw: 0n, outSol: 0 };
+    const order = await this.order(mint, SOL_MINT, amountRaw, false);
+    const outRaw = BigInt(order.outAmount || "0");
+    return { outRaw, outSol: Number(outRaw) / LAMPORTS_PER_SOL };
+  }
+
   async swap(inputMint: string, outputMint: string, amountRaw: bigint): Promise<{signature:string;inRaw:bigint;outRaw:bigint}> {
     if (!config.liveTrading) throw new Error("LIVE_TRADING=false");
     if (!this.wallet.address) throw new Error("Wallet is not configured");

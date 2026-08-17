@@ -70,6 +70,11 @@ export interface Position {
   entryPriceUsd: number;
   openedAt: number;
   highPriceUsd: number;
+  // Real exit-value tracking. These are derived from full-position Jupiter sell quotes.
+  highExecutablePnlPct?: number;
+  lastExecutablePnlPct?: number;
+  lastExecutableUsd?: number;
+  lastExecutableQuoteAt?: number;
   signature?: string;
   scoreAtBuy?: number;
   confidenceAtBuy?: number;

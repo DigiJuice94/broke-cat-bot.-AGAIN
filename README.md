@@ -1,3 +1,31 @@
+# Broke Cat Bot v2.1.0 — Real Exit Protection
+
+**Primary change:** exits no longer trust chart/DEX price alone. Every LIVE position is valued using a full-position Jupiter token→SOL quote, and that executable value drives profit-taking, stop-losses, trailing protection, and rug/liquidity-collapse detection.
+
+## New default exit behavior
+
+```env
+TAKE_PROFIT_PCT=30
+STOP_LOSS_PCT=15
+TRAILING_STOP_PCT=8
+PROFIT_PROTECT_ARM_PCT=15
+EXECUTABLE_QUOTE_DROP_PCT=20
+MIN_EXECUTABLE_VALUE_RATIO=0.65
+RUG_EXIT_PCT=45
+```
+
+- **+30% REAL P/L:** take profit.
+- **-15% REAL P/L:** cut the loss.
+- **Profit protection:** once the executable P/L reaches +15%, an 8-point giveback from the executable peak exits the trade.
+- **Fast-exit protection:** if the actual quoted sell value falls 20% or more between polls, exit immediately.
+- **Liquidity-collapse protection:** if Jupiter says the position is worth less than 65% of what the chart price implies, exit immediately and label it as liquidity collapse.
+- **Sell confirmation:** a failed sell keeps the position live. After execution the bot re-reads the token balance and only removes a fully/near-fully closed position. Partial exits remain tracked.
+- **Logs now separate `Chart P/L` from `REAL P/L` and show `ExitNow`**, so a coin can never be called a +47% take profit when the executable exit value is actually near zero.
+
+> These controls can reduce damage from a collapsing route, but they cannot guarantee an exit if liquidity disappears before a transaction can execute.
+
+---
+
 # Broke Cat Bot v2.0.1 — Axiom-Style Discovery
 
 **Primary change:** popular-runner discovery now starts with Mobula Pulse HTTP configured to mimic an Axiom-style Solana trending view. DEX Screener is demoted to enrichment/fallback, while Birdeye still provides its trending/new-listing and deep finalist data.

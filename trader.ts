@@ -8,6 +8,15 @@ import { Notifier } from "./notifier.ts";
 import { DexScreener } from "./dexscreener.ts";
 import { SolPriceService } from "./solPrice.ts";
 
+type ExecutableExit = {
+  amountRaw: bigint;
+  outSol: number;
+  outUsd: number;
+  pnlPct: number;
+  dexImpliedUsd: number;
+  valueRatio: number;
+};
+
 export class Trader {
   readonly positions = new Map<string, Position>();
   private busy = new Set<string>();
@@ -86,7 +95,34 @@ export class Trader {
     } finally { this.busy.delete(c.token.address); }
   }
 
-  private async sell(p: Position, reason: string, currentPrice?: number) {
+  /**
+   * The chart price is not the exit price on a thin meme coin. This quotes the ENTIRE
+   * wallet position through Jupiter and treats that value as the real P/L used by exits.
+   */
+  private async executableExit(p: Position, dexPrice: number): Promise<ExecutableExit | null> {
+    if (p.paper) return null;
+    const bal = await this.wallet.tokenBalanceRaw(p.mint);
+    const amountRaw = bal.amount > 0n ? bal.amount : p.tokenAmountRaw;
+    if (amountRaw <= 0n) return null;
+
+    const [quote, solUsd] = await Promise.all([
+      this.jupiter.sellQuoteSol(p.mint, amountRaw),
+      this.solPrice.get()
+    ]);
+    const outUsd = quote.outSol * solUsd;
+    const pnlPct = p.entryUsd > 0 ? ((outUsd - p.entryUsd) / p.entryUsd) * 100 : 0;
+    const dexImpliedUsd = p.entryUsd * (dexPrice / p.entryPriceUsd);
+    const valueRatio = dexImpliedUsd > 0 ? outUsd / dexImpliedUsd : 1;
+
+    p.highExecutablePnlPct = Math.max(p.highExecutablePnlPct ?? pnlPct, pnlPct);
+    p.lastExecutablePnlPct = pnlPct;
+    p.lastExecutableUsd = outUsd;
+    p.lastExecutableQuoteAt = Date.now();
+
+    return { amountRaw, outSol: quote.outSol, outUsd, pnlPct, dexImpliedUsd, valueRatio };
+  }
+
+  private async sell(p: Position, reason: string, currentPrice?: number, expected?: ExecutableExit | null) {
     if (this.busy.has(p.mint)) return;
     this.busy.add(p.mint);
     try {
@@ -103,43 +139,68 @@ export class Trader {
         });
         return;
       }
-      const bal = await this.wallet.tokenBalanceRaw(p.mint);
-      const amount = bal.amount > 0n ? bal.amount : p.tokenAmountRaw;
-      if (amount <= 0n) { this.positions.delete(p.mint); return; }
+
+      // Re-read the actual wallet amount immediately before execution; never sell a stale stored amount.
+      const before = await this.wallet.tokenBalanceRaw(p.mint);
+      const amount = before.amount > 0n ? before.amount : (expected?.amountRaw ?? p.tokenAmountRaw);
+      if (amount <= 0n) {
+        log.warn(`[SELL] ${p.name} ($${p.symbol}) | token balance already zero; removing stale position`);
+        this.positions.delete(p.mint);
+        return;
+      }
+
       const result = await this.jupiter.swap(p.mint, SOL_MINT, amount);
       const solOut = Number(result.outRaw) / LAMPORTS_PER_SOL;
       const solUsd = await this.solPrice.get();
       const outUsd = solOut * solUsd;
       const pnlPct = ((outUsd - p.entryUsd) / p.entryUsd) * 100;
-      this.positions.delete(p.mint);
-      log.info(`[SELL] ${p.name} ($${p.symbol}) | 💰 SOLD | ${reason} | received≈$${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}% | tx ${result.signature}`);
+
+      // Verify the token actually left the wallet before declaring SOLD.
+      const after = await this.wallet.tokenBalanceRaw(p.mint);
+      const soldRaw = before.amount > after.amount ? before.amount - after.amount : result.inRaw;
+      const soldFraction = before.amount > 0n ? Number(soldRaw * 10_000n / before.amount) / 100 : 100;
+      const effectivelyClosed = after.amount === 0n || soldFraction >= 99.5;
+
+      if (effectivelyClosed) this.positions.delete(p.mint);
+      else {
+        p.tokenAmountRaw = after.amount;
+        log.warn(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ PARTIAL EXIT ${soldFraction.toFixed(2)}% | ${reason} | remaining raw ${after.amount.toString()} | tx ${result.signature}`);
+      }
+
+      const rugLike = pnlPct <= -config.rugExitPct || (expected && expected.valueRatio < config.minExecutableValueRatio);
+      const label = rugLike ? "🚨 RUG/LIQUIDITY EXIT" : "💰 SOLD";
+      log.info(`[SELL] ${p.name} ($${p.symbol}) | ${label} | ${reason} | received≈$${outUsd.toFixed(2)} (${solOut.toFixed(6)} SOL) | REAL P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}% | sold ${soldFraction.toFixed(2)}% | tx ${result.signature}`);
       void this.notifier.send({
-        title: `💰 SOLD $${p.symbol}`,
-        message: `${p.name} ($${p.symbol}) | ${reason} | Received $${outUsd.toFixed(2)} | P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}%`,
-        priority: "high", tags: [pnlPct >= 0 ? "moneybag" : "warning"]
+        title: `${rugLike ? "🚨 RUG EXIT" : "💰 SOLD"} $${p.symbol}`,
+        message: `${p.name} ($${p.symbol}) | ${reason} | Received $${outUsd.toFixed(2)} | REAL P/L ${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}%`,
+        priority: "max", tags: [pnlPct >= 0 ? "moneybag" : "warning"]
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      log.error(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ SELL FAILED | ${msg}`);
+      // Critical: a failed sell NEVER removes the position. It remains live for the next retry.
+      log.error(`[SELL] ${p.name} ($${p.symbol}) | ⚠️ SELL FAILED — POSITION RETAINED | ${msg}`);
       void this.notifier.send({
         title: `⚠️ SELL FAILED $${p.symbol}`,
-        message: `${p.name} ($${p.symbol}) | ${msg} | Contract ${p.mint}`,
+        message: `${p.name} ($${p.symbol}) | Position retained + will retry | ${msg} | Contract ${p.mint}`,
         priority: "max", tags: ["warning"]
       });
     }
     finally { this.busy.delete(p.mint); }
   }
 
-  private logCurrentTrade(p: Position, price: number, index: number, total: number) {
-    const pnl = ((price-p.entryPriceUsd)/p.entryPriceUsd)*100;
+  private logCurrentTrade(p: Position, price: number, index: number, total: number, executable?: ExecutableExit | null) {
+    const chartPnl = ((price-p.entryPriceUsd)/p.entryPriceUsd)*100;
     const peakPnl = ((p.highPriceUsd-p.entryPriceUsd)/p.entryPriceUsd)*100;
     const ageSec = Math.floor((Date.now()-p.openedAt)/1000);
     const mm = Math.floor(ageSec/60).toString().padStart(2,"0");
     const ss = (ageSec%60).toString().padStart(2,"0");
-    const currentValue = p.entryUsd * (price/p.entryPriceUsd);
+    const chartValue = p.entryUsd * (price/p.entryPriceUsd);
     const status = p.paper ? "🧪 PAPER HOLDING" : "🟢 HOLDING";
     const score = p.scoreAtBuy == null ? "?" : `${p.scoreAtBuy}/100`;
-    log.info(`[CURRENT TRADE ${index}/${total}] ${status} | ${p.name} ($${p.symbol}) | Entry:$${p.entryPriceUsd.toPrecision(6)} | Current:$${price.toPrecision(6)} | Position:$${p.entryUsd.toFixed(2)} | Value≈$${currentValue.toFixed(2)} | P/L:${pnl>=0?"+":""}${pnl.toFixed(1)}% | Peak:${peakPnl>=0?"+":""}${peakPnl.toFixed(1)}% | Held:${mm}:${ss} | BuyScore:${score} | CA:${p.mint}`);
+    const real = executable
+      ? ` | ExitNow:$${executable.outUsd.toFixed(2)} | REAL P/L:${executable.pnlPct>=0?"+":""}${executable.pnlPct.toFixed(1)}% | Exit/Dex:${(executable.valueRatio*100).toFixed(0)}%`
+      : "";
+    log.info(`[CURRENT TRADE ${index}/${total}] ${status} | ${p.name} ($${p.symbol}) | Entry:$${p.entryPriceUsd.toPrecision(6)} | Current:$${price.toPrecision(6)} | Position:$${p.entryUsd.toFixed(2)} | ChartValue≈$${chartValue.toFixed(2)} | Chart P/L:${chartPnl>=0?"+":""}${chartPnl.toFixed(1)}%${real} | Peak:${peakPnl>=0?"+":""}${peakPnl.toFixed(1)}% | Held:${mm}:${ss} | BuyScore:${score} | CA:${p.mint}`);
   }
 
   async monitorPositions() {
@@ -165,14 +226,58 @@ export class Trader {
         const price = s?.priceUsd;
         if (!price) continue;
         p.highPriceUsd = Math.max(p.highPriceUsd, price);
-        const pnl = ((price-p.entryPriceUsd)/p.entryPriceUsd)*100;
-        const drawdown = ((price-p.highPriceUsd)/p.highPriceUsd)*100;
+        const chartPnl = ((price-p.entryPriceUsd)/p.entryPriceUsd)*100;
+        const chartDrawdown = ((price-p.highPriceUsd)/p.highPriceUsd)*100;
         const ageMin = (Date.now()-p.openedAt)/60000;
-        if (shouldLogStatus) this.logCurrentTrade(p, price, index, positions.length);
-        if (pnl >= config.takeProfitPct) await this.sell(p, `TAKE PROFIT ${pnl.toFixed(1)}%`, price);
-        else if (pnl <= -config.stopLossPct) await this.sell(p, `STOP LOSS ${pnl.toFixed(1)}%`, price);
-        else if (pnl > 8 && drawdown <= -config.trailingStopPct) await this.sell(p, `TRAILING EXIT ${drawdown.toFixed(1)}% from high`, price);
-        else if (ageMin >= config.maxPositionAgeMin) await this.sell(p, `TIME EXIT ${ageMin.toFixed(1)}m`, price);
+
+        if (p.paper) {
+          if (shouldLogStatus) this.logCurrentTrade(p, price, index, positions.length);
+          if (chartPnl >= config.takeProfitPct) await this.sell(p, `TAKE PROFIT ${chartPnl.toFixed(1)}%`, price);
+          else if (chartPnl <= -config.stopLossPct) await this.sell(p, `STOP LOSS ${chartPnl.toFixed(1)}%`, price);
+          else if (chartPnl >= config.profitProtectArmPct && chartDrawdown <= -config.trailingStopPct) await this.sell(p, `PROFIT PROTECT ${chartDrawdown.toFixed(1)}% from high`, price);
+          else if (ageMin >= config.maxPositionAgeMin) await this.sell(p, `TIME EXIT ${ageMin.toFixed(1)}m`, price);
+          continue;
+        }
+
+        // LIVE positions: Jupiter's full-position sell quote is the source of truth for exit P/L.
+        const previousExecutableUsd = p.lastExecutableUsd;
+        const executable = await this.executableExit(p, price);
+        if (!executable) {
+          if (shouldLogStatus) this.logCurrentTrade(p, price, index, positions.length, null);
+          continue;
+        }
+
+        const peakExecutable = p.highExecutablePnlPct ?? executable.pnlPct;
+        const executableDrawdown = peakExecutable - executable.pnlPct;
+        const quoteDropPct = previousExecutableUsd && previousExecutableUsd > 0
+          ? ((previousExecutableUsd - executable.outUsd) / previousExecutableUsd) * 100
+          : 0;
+        if (shouldLogStatus) this.logCurrentTrade(p, price, index, positions.length, executable);
+
+        // 1) The route has detached from the chart: treat this as a rug/liquidity emergency.
+        if (executable.valueRatio < config.minExecutableValueRatio) {
+          await this.sell(p, `LIQUIDITY COLLAPSE | executable ${(executable.valueRatio*100).toFixed(0)}% of chart value | chart ${chartPnl>=0?"+":""}${chartPnl.toFixed(1)}% vs REAL ${executable.pnlPct>=0?"+":""}${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
+        // 2) A very fast drop in actual sellable value gets out before the normal stop catches up.
+        else if (quoteDropPct >= config.executableQuoteDropPct) {
+          await this.sell(p, `FAST EXIT | executable value dropped ${quoteDropPct.toFixed(1)}% since last poll | REAL ${executable.pnlPct>=0?"+":""}${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
+        // 3) Take profit earlier, using what Jupiter can actually return—not the displayed token price.
+        else if (executable.pnlPct >= config.takeProfitPct) {
+          await this.sell(p, `TAKE PROFIT REAL +${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
+        // 4) Cut losers earlier on executable value.
+        else if (executable.pnlPct <= -config.stopLossPct) {
+          const rug = executable.pnlPct <= -config.rugExitPct ? "RUG/LIQUIDITY " : "";
+          await this.sell(p, `${rug}STOP LOSS REAL ${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
+        // 5) Once +15% real profit exists, allow only an 8-point giveback from the executable peak.
+        else if (peakExecutable >= config.profitProtectArmPct && executableDrawdown >= config.trailingStopPct) {
+          await this.sell(p, `PROFIT PROTECT | REAL peak +${peakExecutable.toFixed(1)}% → +${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
+        else if (ageMin >= config.maxPositionAgeMin) {
+          await this.sell(p, `TIME EXIT ${ageMin.toFixed(1)}m | REAL ${executable.pnlPct>=0?"+":""}${executable.pnlPct.toFixed(1)}%`, price, executable);
+        }
       } catch (e) { log.warn(`[POSITION ERROR] ${p.name}: ${e instanceof Error ? e.message : String(e)}`); }
     }
   }
