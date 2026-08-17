@@ -24,7 +24,10 @@ export class SocialIntel {
   private lastPoll=0;
   private meta:string[]=[];
   private newestId="";
-  enabled(){return Boolean(config.xBearerToken);}
+  private operational=false;
+  private consecutiveFailures=0;
+  configured(){return Boolean(config.xBearerToken);}
+  enabled(){return this.configured() && this.operational;}
   watchlist(){return WATCH.map(x=>x.label).join(", ");}
   currentMeta(){return this.meta;}
 
@@ -37,7 +40,7 @@ export class SocialIntel {
   }
 
   async poll(){
-    if(!this.enabled()||Date.now()-this.lastPoll<config.socialPollMs)return;
+    if(!this.configured()||Date.now()-this.lastPoll<config.socialPollMs)return;
     this.lastPoll=Date.now();
     const query=`(${WATCH.map(x=>`from:${x.username}`).join(" OR ")}) -is:retweet`;
     const q=new URLSearchParams({query,"tweet.fields":"created_at,public_metrics,author_id","expansions":"author_id","user.fields":"username,verified","max_results":"100"});
@@ -49,10 +52,16 @@ export class SocialIntel {
       const added:StoredPost[]=[];
       for(const p of (j.data??[]) as XPost[]){const username=users.get(String(p.author_id))??"";const w=WATCH.find(x=>x.username.toLowerCase()===username.toLowerCase());if(!w)continue;added.push({...p,username:w.username,label:w.label,baseWeight:w.weight,fetchedAt:(p.created_at?Date.parse(p.created_at):Date.now())});}
       if(j.meta?.newest_id)this.newestId=String(j.meta.newest_id);
+      this.operational=true;
+      this.consecutiveFailures=0;
       this.posts=[...added,...this.posts].filter(p=>Date.now()-p.fetchedAt<=config.socialLookbackMin*60000).slice(0,500);
       this.computeMeta();
       if(added.length)log.info(`[SOCIAL] +${added.length} watchlist posts | META: ${this.meta.slice(0,5).join(" / ")||"forming"}`);
-    }catch(e){log.warn(`[SOCIAL] X watchlist unavailable: ${e instanceof Error?e.message:String(e)}`);}
+    }catch(e){
+      this.consecutiveFailures++;
+      this.operational=false;
+      log.warn(`[SOCIAL] X unavailable (${this.consecutiveFailures} failure${this.consecutiveFailures===1?"":"s"}) — social weighting bypassed; market + safety scoring remains active. ${e instanceof Error?e.message:String(e)}`);
+    }
   }
 
   discoveredTokens():DiscoveredToken[]{

@@ -14,13 +14,13 @@ async function main(){
   log.info(`Mode: ${config.liveTrading?"🔴 LIVE":"🟡 PAPER / SCAN"}`); log.info(`Wallet: ${wallet.address??"NOT CONFIGURED"}`);
   log.info(`Observation: ${config.minObservationMs/1000}-${config.maxObservationMs/1000}s | Buy score ≥${config.buyScore} | Data ≥${config.minDataConfidence}%`);
   log.info(`Discovery: Social watchlist + Mobula Axiom-style + Birdeye + DEX | META RUNNER aware`);
-  log.info(`Social: ${config.xBearerToken?"ON":"OFF — add X_BEARER_TOKEN"} | watchlist Ansem, sling, Cobie, CZ, PoorGoat, Pump.fun | blend 40% market / 40% social / 20% safety when enabled`);
+  log.info(`Social: ${config.xBearerToken?"OPTIONAL X CONFIGURED":"OFF — no X funding/token required"} | watchlist Ansem, sling, Cobie, CZ, PoorGoat, Pump.fun | 40/40/20 only while X is actually responding`);
   log.info(`Exits: adaptive soft -${config.softStopLossPct}% when momentum fails | hard -${config.hardStopLossPct}% | executable Jupiter protection stays active`);
   log.info(`Mobula Axiom-style: ${config.mobulaApiKey?"ON":"OFF — add MOBULA_API_KEY"} | interval ${Math.round(config.mobulaTrendingIntervalMs/1000)}s`);
   log.info(`Birdeye: new ${Math.round(config.birdeyeNewIntervalMs/60000)}m | trending ${Math.round(config.birdeyeTrendingIntervalMs/60000)}m | deep top ${config.birdeyeDeepCandidates} at score ≥${config.birdeyeDeepMinScore} | CU budget ${config.birdeyeCuBudgetPerHour}/hr`);
   log.info(`Sizing: dynamic, minimum $${config.minPositionUsd}, NO MAX POSITION CAP | SOL reserve ${config.solFeeReserve}`);
   log.info(`SOL/USD: background cache | Coinbase → DEX Screener → Jupiter emergency fallback | refresh ${Math.round(config.solUsdRefreshMs/1000)}s`);
-  if(!config.xBearerToken)log.warn("X_BEARER_TOKEN missing — social/meta layer is disabled; bot still runs market + safety scoring.");
+  if(!config.xBearerToken)log.warn("X_BEARER_TOKEN missing — expected/OK. Social/meta layer is skipped and scoring automatically reweights to 80% market / 20% safety.");
   if(!config.mobulaApiKey)log.warn("MOBULA_API_KEY missing — popular Axiom-style runner discovery unavailable; bot will use fallbacks.");
   if(!config.birdeyeApiKey)log.warn("BIRDEYE_API_KEY missing — Birdeye discovery/deep enrichment unavailable.");
   if(!config.jupiterApiKey)log.warn("JUPITER_API_KEY missing — route verification/trading unavailable.");

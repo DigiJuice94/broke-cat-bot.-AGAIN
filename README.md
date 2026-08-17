@@ -140,7 +140,7 @@ When freshly collected market data pushes a token across the configured BUY_SCOR
 
 - Jupiter requests are now serialized with 429 backoff (`JUPITER_MIN_INTERVAL_MS`, default 500ms).
 
-## v2.2.0 — Meta Runner Intelligence
+## v2.2.1 — Meta Runner Intelligence
 
 Broke Cat now combines four compact layers instead of buying random movement:
 
@@ -154,3 +154,15 @@ When `X_BEARER_TOKEN` is configured, the final score is approximately **40% mark
 The exit system is now adaptive: a weak loser can exit around the soft-stop level while a temporary shakeout with strong buy pressure can survive until the hard stop. Full-position Jupiter executable-value protection remains the source of truth for live exits.
 
 Closed trades are re-checked at **5m / 15m / 30m / 60m** after exit and logged as early-exit/good-stop follow-up data so future tuning can use actual outcomes.
+
+
+## v2.2.1 — X Optional Failover
+
+X is now strictly optional. The bot does **not** require X API credits/funding to trade.
+
+- No `X_BEARER_TOKEN` -> social layer stays off; final scoring is **80% market + 20% safety**.
+- Token configured but X returns an error such as 401/402/403/429 or times out -> social weighting is immediately bypassed; the bot stays on **80% market + 20% safety**.
+- X starts responding successfully later -> social intelligence automatically becomes operational and the **40% market + 40% social + 20% safety** blend returns.
+- A broken or unfunded X connection can never lower every candidate's score by supplying zero social points.
+
+This keeps the Meta Runner system available when X is usable without making X a dependency.
