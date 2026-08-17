@@ -21,9 +21,20 @@ export const config = {
   birdeyeHolderCacheMs: num("BIRDEYE_HOLDER_CACHE_MS", 300_000),
   birdeyeCuBudgetPerHour: num("BIRDEYE_CU_BUDGET_PER_HOUR", 1_800),
   birdeyeCuCooldownMs: num("BIRDEYE_CU_COOLDOWN_MS", 21_600_000),
-  birdeyeNewIntervalMs: num("BIRDEYE_NEW_INTERVAL_MS", 180_000),
-  birdeyeTrendingIntervalMs: num("BIRDEYE_TRENDING_INTERVAL_MS", 300_000),
+  birdeyeNewIntervalMs: num("BIRDEYE_NEW_INTERVAL_MS", 300_000),
+  birdeyeTrendingIntervalMs: num("BIRDEYE_TRENDING_INTERVAL_MS", 120_000),
   birdeyeMemeIntervalMs: num("BIRDEYE_MEME_INTERVAL_MS", 0),
+
+  // Mobula Pulse gives us an Axiom-style trending universe without scraping Axiom.
+  mobulaApiKey: process.env.MOBULA_API_KEY ?? "",
+  mobulaPulseUrl: process.env.MOBULA_PULSE_URL ?? "https://api.mobula.io/api/2/pulse",
+  mobulaTrendingIntervalMs: num("MOBULA_TRENDING_INTERVAL_MS", 15_000),
+  mobulaTimeoutMs: num("MOBULA_TIMEOUT_MS", 8_000),
+  mobulaTrendingLimit: num("MOBULA_TRENDING_LIMIT", 30),
+  mobulaActiveSlots: num("MOBULA_ACTIVE_SLOTS", 12),
+  mobulaMinVolume1hUsd: num("MOBULA_MIN_VOLUME_1H_USD", 5_000),
+  mobulaMinLiquidityUsd: num("MOBULA_MIN_LIQUIDITY_USD", 1_500),
+  mobulaMinPriceChange1hPct: num("MOBULA_MIN_PRICE_CHANGE_1H_PCT", 5),
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
 
@@ -37,7 +48,11 @@ export const config = {
   dexDiscoveryIntervalMs: num("DEX_DISCOVERY_INTERVAL_MS", 15_000),
   minActiveCandidates: num("MIN_ACTIVE_CANDIDATES", 10),
   rewatchCooldownMs: num("REWATCH_COOLDOWN_MS", 60_000),
-  knownRetentionMs: num("KNOWN_RETENTION_MS", 900_000),
+  knownRetentionMs: num("KNOWN_RETENTION_MS", 1_800_000),
+  trendingRewatchCooldownMs: num("TRENDING_REWATCH_COOLDOWN_MS", 15_000),
+  momentumMinBuys5m: num("MOMENTUM_MIN_BUYS_5M", 20),
+  momentumMinBuySellRatio: num("MOMENTUM_MIN_BUY_SELL_RATIO", 1.35),
+  momentumMinPrice5mPct: num("MOMENTUM_MIN_PRICE_5M_PCT", 5),
 
   routeDeepCandidates: num("ROUTE_DEEP_CANDIDATES", 4),
   bundleDeepCandidates: num("BUNDLE_DEEP_CANDIDATES", 3),

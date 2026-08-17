@@ -50,8 +50,12 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
 
   // Discovery priority is useful evidence, but never enough to force a buy.
   if (c.sources.has("axiom")) score+=5; if (c.sources.has("fomo")) score+=5;
+  if (c.sources.has("mobula-axiom-volume") || c.sources.has("mobula-axiom-price")) score+=5;
+  const rankClimb=Math.max(0,...Object.values(c.rankMovement??{}).map(Number));
+  score += clamp(rankClimb*0.6,0,6);
   if (c.sources.has("birdeye-trending")) score+=4; if (c.sources.has("birdeye-new")) score+=2;
-  if (c.sources.has("dex-profile")) score+=1; if (c.sources.has("dex-boost")) score+=1; if (c.sources.has("dex-boost-top")) score+=2;
+  if (c.sources.has("dex-momentum")) score+=4;
+  if (c.sources.has("dex-profile")) score+=1; if (c.sources.has("dex-boost")) score+=0; if (c.sources.has("dex-boost-top")) score+=1;
   if (c.sources.has("axiom") && c.sources.has("fomo")) score+=4;
 
   // Risk deductions.

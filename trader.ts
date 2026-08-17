@@ -157,7 +157,7 @@ export class Trader {
     const currentValue = p.entryUsd * (price/p.entryPriceUsd);
     const status = p.paper ? "🧪 PAPER HOLDING" : "🟢 HOLDING";
     const score = p.scoreAtBuy == null ? "?" : `${p.scoreAtBuy}/100`;
-    log.info(`[CURRENT TRADE ${index}/${total}] ${status} | ${p.name} ($${p.symbol}) | Entry:$${p.entryPriceUsd.toPrecision(6)} | Current:$${price.toPrecision(6)} | Position:$${p.entryUsd.toFixed(2)} | Value≈$${currentValue.toFixed(2)} | P/L:${pnl>=0?"+":""}${pnl.toFixed(1)}% | Peak:${peakPnl>=0?"+":""}${peakPnl.toFixed(1)}% | Held:${mm}:${ss} | BuyScore:${score}`);
+    log.info(`[CURRENT TRADE ${index}/${total}] ${status} | ${p.name} ($${p.symbol}) | Entry:$${p.entryPriceUsd.toPrecision(6)} | Current:$${price.toPrecision(6)} | Position:$${p.entryUsd.toFixed(2)} | Value≈$${currentValue.toFixed(2)} | P/L:${pnl>=0?"+":""}${pnl.toFixed(1)}% | Peak:${peakPnl>=0?"+":""}${peakPnl.toFixed(1)}% | Held:${mm}:${ss} | BuyScore:${score} | CA:${p.mint}`);
   }
 
   async monitorPositions() {

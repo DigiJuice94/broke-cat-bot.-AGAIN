@@ -1,4 +1,4 @@
-export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "dex-profile" | "dex-boost" | "dex-boost-top" | "axiom" | "fomo";
+export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "dex-profile" | "dex-boost" | "dex-boost-top" | "dex-momentum" | "mobula-axiom-volume" | "mobula-axiom-price" | "axiom" | "fomo";
 
 export interface DiscoveredToken {
   address: string;
@@ -47,6 +47,8 @@ export interface Candidate {
   lastSeenAt: number;
   sources: Set<FeedSource>;
   trendingRanks: Partial<Record<FeedSource, number>>;
+  previousTrendingRanks?: Partial<Record<FeedSource, number>>;
+  rankMovement?: Partial<Record<FeedSource, number>>;
   snapshots: Snapshot[];
   score: number;
   dataConfidence: number;

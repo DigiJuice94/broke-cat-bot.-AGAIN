@@ -29,9 +29,10 @@ export class DexScreener {
    */
   async discover(): Promise<DiscoveredToken[]> {
     const feeds: Array<{url:string; source:DiscoveredToken["source"]; cap:number}> = [
-      { url:"https://api.dexscreener.com/token-profiles/latest/v1", source:"dex-profile", cap:10 },
-      { url:"https://api.dexscreener.com/token-boosts/latest/v1", source:"dex-boost", cap:10 },
-      { url:"https://api.dexscreener.com/token-boosts/top/v1", source:"dex-boost-top", cap:10 },
+      { url:"https://api.dexscreener.com/token-profiles/latest/v1", source:"dex-profile", cap:16 },
+      // Boosts are paid attention signals, so they are supplemental only.
+      { url:"https://api.dexscreener.com/token-boosts/latest/v1", source:"dex-boost", cap:5 },
+      { url:"https://api.dexscreener.com/token-boosts/top/v1", source:"dex-boost-top", cap:5 },
     ];
     const settled = await Promise.allSettled(feeds.map(f => getJson(f.url, {}, config.dexTimeoutMs)));
     const byAddress = new Map<string, DiscoveredToken>();
