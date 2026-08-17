@@ -70,6 +70,15 @@ export const config = {
   promoteScore: num("PROMOTE_SCORE", 55),
   buyScore: num("BUY_SCORE", 78),
   minDataConfidence: num("MIN_DATA_CONFIDENCE", 70),
+
+  // v2.2.2 Fast Runner bypass: strong same-cycle runners do not have to wait
+  // through DEVELOPING / MIN_OBSERVATION_MS. Route + sellability still gate entry.
+  fastEntryEnabled: bool("FAST_ENTRY_ENABLED", true),
+  fastEntryMinConfidence: num("FAST_ENTRY_MIN_CONFIDENCE", 85),
+  fastEntryMinSources: num("FAST_ENTRY_MIN_SOURCES", 2),
+  fastEntryMinBuySellRatio: num("FAST_ENTRY_MIN_BUY_SELL_RATIO", 3),
+  fastEntryMinVolume1mUsd: num("FAST_ENTRY_MIN_VOLUME_1M_USD", 1000),
+  fastEntryMaxBundleRisk: num("FAST_ENTRY_MAX_BUNDLE_RISK", 55),
   minPositionUsd: num("MIN_POSITION_USD", 2),
   solFeeReserve: num("SOL_FEE_RESERVE", 0.015),
   solUsdCacheMs: num("SOL_USD_CACHE_MS", 120_000),

@@ -10,10 +10,10 @@ const sleep=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function main(){
   const wallet=new WalletService(),birdeye=new Birdeye(),jupiter=new Jupiter(wallet),trader=new Trader(wallet,jupiter);
   const scanner=new Scanner(birdeye,jupiter,c=>trader.buy(c));
-  log.info("🐱 BROKE CAT BOT v2.2.0 — META RADAR + SMART MONEY + ADAPTIVE EXITS");
+  log.info("🐱 BROKE CAT BOT v2.2.2 — FAST RUNNER + META RADAR + SMART MONEY");
   log.info(`Mode: ${config.liveTrading?"🔴 LIVE":"🟡 PAPER / SCAN"}`); log.info(`Wallet: ${wallet.address??"NOT CONFIGURED"}`);
-  log.info(`Observation: ${config.minObservationMs/1000}-${config.maxObservationMs/1000}s | Buy score ≥${config.buyScore} | Data ≥${config.minDataConfidence}%`);
-  log.info(`Discovery: Social watchlist + Mobula Axiom-style + Birdeye + DEX | META RUNNER aware`);
+  log.info(`Observation: ${config.minObservationMs/1000}-${config.maxObservationMs/1000}s normal | FAST ENTRY bypass:${config.fastEntryEnabled?"ON":"OFF"} | Buy score ≥${config.buyScore}`);
+  log.info(`Discovery: Social watchlist + Mobula Axiom-style + Birdeye + DEX | META RUNNER aware | DEVELOPING can be bypassed on strong same-cycle runners`);
   log.info(`Social: ${config.xBearerToken?"OPTIONAL X CONFIGURED":"OFF — no X funding/token required"} | watchlist Ansem, sling, Cobie, CZ, PoorGoat, Pump.fun | 40/40/20 only while X is actually responding`);
   log.info(`Exits: adaptive soft -${config.softStopLossPct}% when momentum fails | hard -${config.hardStopLossPct}% | executable Jupiter protection stays active`);
   log.info(`Mobula Axiom-style: ${config.mobulaApiKey?"ON":"OFF — add MOBULA_API_KEY"} | interval ${Math.round(config.mobulaTrendingIntervalMs/1000)}s`);

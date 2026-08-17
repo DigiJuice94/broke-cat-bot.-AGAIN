@@ -1,4 +1,4 @@
-# Broke Cat Bot v2.1.0 — Real Exit Protection
+# Broke Cat Bot v2.2.2 — Fast Runner / Meta Intelligence
 
 **Primary change:** exits no longer trust chart/DEX price alone. Every LIVE position is valued using a full-position Jupiter token→SOL quote, and that executable value drives profit-taking, stop-losses, trailing protection, and rug/liquidity-collapse detection.
 
@@ -166,3 +166,19 @@ X is now strictly optional. The bot does **not** require X API credits/funding t
 - A broken or unfunded X connection can never lower every candidate's score by supplying zero social points.
 
 This keeps the Meta Runner system available when X is usable without making X a dependency.
+
+
+## v2.2.2 — Fast Runner / DEVELOPING Bypass
+
+`DEVELOPING` is no longer a mandatory wait state. A token can become `READY` and enter in the same scan cycle before `MIN_OBSERVATION_MS` when all fast-entry gates pass:
+
+- Score >= `BUY_SCORE` (default 78)
+- Data confidence >= `FAST_ENTRY_MIN_CONFIDENCE` (default 85%)
+- At least `FAST_ENTRY_MIN_SOURCES` discovery sources (default 2)
+- 1m buy/sell pressure >= `FAST_ENTRY_MIN_BUY_SELL_RATIO` (default 3x)
+- 1m volume >= `FAST_ENTRY_MIN_VOLUME_1M_USD` (default $1,000)
+- Known bundle risk is <= `FAST_ENTRY_MAX_BUNDLE_RISK` (default 55)
+- Social requirement passes when X is actually available; X still fails open when unavailable
+- Jupiter buy route passes and, when `REQUIRE_SELL_ROUTE=true`, the immediate sell route passes
+
+A successful bypass prints `[FAST ENTRY] ... bypass DEVELOPING` so it is obvious in Railway logs why the bot entered early. Borderline candidates still use the normal observation window.

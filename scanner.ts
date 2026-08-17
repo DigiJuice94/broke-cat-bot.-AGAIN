@@ -198,7 +198,38 @@ export class Scanner {
       }
 
       const socialOK=!snap.social?.enabled||!config.socialRequireWhenEnabled||snap.social.score>=config.socialMinBuyScore;
-      if(age>=config.minObservationMs&&c.score>=config.buyScore&&c.dataConfidence>=config.minDataConfidence&&socialOK&&snap.buyRoute&&(!config.requireSellRoute||snap.sellRoute))c.state="READY";
+
+      // v2.2.2 FAST RUNNER BYPASS
+      // DEVELOPING is now informational, not a mandatory waiting room. If fresh data
+      // already proves strong pressure and Jupiter confirms both entry + exit, the
+      // token may become READY in the same scan cycle even before MIN_OBSERVATION_MS.
+      const buys1m=Number(snap.buys1m??0), sells1m=Number(snap.sells1m??0);
+      const buySellRatio=buys1m>0?buys1m/Math.max(1,sells1m):0;
+      const sourceCount=c.sources.size;
+      const volume1m=Number(snap.volume1mUsd??0);
+      const bundleSafe=snap.bundleRisk==null||snap.bundleRisk<=config.fastEntryMaxBundleRisk;
+      const routesOK=!!snap.buyRoute&&(!config.requireSellRoute||!!snap.sellRoute);
+      const fastEntry=config.fastEntryEnabled
+        && c.score>=config.buyScore
+        && c.dataConfidence>=config.fastEntryMinConfidence
+        && sourceCount>=config.fastEntryMinSources
+        && buySellRatio>=config.fastEntryMinBuySellRatio
+        && volume1m>=config.fastEntryMinVolume1mUsd
+        && bundleSafe
+        && socialOK
+        && routesOK;
+
+      const normalEntry=age>=config.minObservationMs
+        && c.score>=config.buyScore
+        && c.dataConfidence>=config.minDataConfidence
+        && socialOK
+        && routesOK;
+
+      if(fastEntry){
+        c.state="READY";
+        c.decisionReason=`FAST ENTRY: bypassed DEVELOPING | score ${Math.round(c.score)} | data ${Math.round(c.dataConfidence)}% | B/S ${buySellRatio.toFixed(1)}x | vol $${Math.round(volume1m)} | sources ${sourceCount}`;
+        log.info(`[FAST ENTRY] ${c.token.name} ($${c.token.symbol}) | bypass DEVELOPING | Score:${Math.round(c.score)} Data:${Math.round(c.dataConfidence)}% B/S:${buySellRatio.toFixed(1)}x Vol:$${Math.round(volume1m)} Sources:${sourceCount} | BuyRoute:Y SellRoute:${snap.sellRoute?"Y":"-"}`);
+      } else if(normalEntry)c.state="READY";
       else if(age>=config.maxObservationMs){c.state="DROPPED";c.lastDroppedAt=Date.now();c.decisionReason=`NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;}
       else if(c.score>=config.promoteScore)c.state="DEVELOPING"; else c.state="WATCHING";
 

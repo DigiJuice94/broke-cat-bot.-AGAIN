@@ -1,6 +1,6 @@
 {
-  "name": "broke-cat-bot-v2-2-1-x-optional",
-  "version": "2.2.1",
+  "name": "broke-cat-bot-v2-2-2-fast-runner",
+  "version": "2.2.2",
   "private": true,
   "type": "module",
   "scripts": {
