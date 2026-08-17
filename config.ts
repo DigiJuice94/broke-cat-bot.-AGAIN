@@ -37,6 +37,8 @@ export const config = {
   mobulaMinPriceChange1hPct: num("MOBULA_MIN_PRICE_CHANGE_1H_PCT", 5),
 
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
+  jupiterMinIntervalMs: num("JUPITER_MIN_INTERVAL_MS", 500),
+  jupiterMaxRetries: num("JUPITER_MAX_RETRIES", 2),
 
   ntfyServer: process.env.NTFY_SERVER ?? "https://ntfy.sh",
   ntfyTopic: process.env.NTFY_TOPIC ?? "",
@@ -70,8 +72,11 @@ export const config = {
   minDataConfidence: num("MIN_DATA_CONFIDENCE", 70),
   minPositionUsd: num("MIN_POSITION_USD", 2),
   solFeeReserve: num("SOL_FEE_RESERVE", 0.015),
-  solUsdCacheMs: num("SOL_USD_CACHE_MS", 60_000),
+  solUsdCacheMs: num("SOL_USD_CACHE_MS", 120_000),
   solUsdStaleMs: num("SOL_USD_STALE_MS", 300_000),
+  solUsdRefreshMs: num("SOL_USD_REFRESH_MS", 45_000),
+  solUsdTimeoutMs: num("SOL_USD_TIMEOUT_MS", 5_000),
+  solUsdLogIntervalMs: num("SOL_USD_LOG_INTERVAL_MS", 300_000),
   takeProfitPct: num("TAKE_PROFIT_PCT", 45),
   stopLossPct: num("STOP_LOSS_PCT", 18),
   trailingStopPct: num("TRAILING_STOP_PCT", 12),

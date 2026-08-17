@@ -2,19 +2,21 @@ import { config, SOL_MINT, USDC_MINT, LAMPORTS_PER_SOL } from "./config.ts";
 import { SwapOrder } from "./types.ts";
 import { getJson, postJson } from "./http.ts";
 import { WalletService } from "./wallet.ts";
+import { RequestQueue } from "./requestQueue.ts";
 
 const BASE = "https://api.jup.ag/swap/v2";
 const headers = () => ({ "x-api-key": config.jupiterApiKey, accept: "application/json" });
 
 export class Jupiter {
   private solUsdCache?: { at:number; value:number };
+  private queue = new RequestQueue("Jupiter", config.jupiterMinIntervalMs, config.jupiterMaxRetries);
   constructor(private wallet: WalletService) {}
 
   async order(inputMint: string, outputMint: string, amountRaw: bigint, withTransaction: boolean): Promise<SwapOrder> {
     if (!config.jupiterApiKey) throw new Error("Missing JUPITER_API_KEY");
     const q = new URLSearchParams({ inputMint, outputMint, amount: amountRaw.toString() });
     if (withTransaction && this.wallet.address) q.set("taker", this.wallet.address);
-    return await getJson(`${BASE}/order?${q}`, headers(), 10_000) as SwapOrder;
+    return await this.queue.schedule(() => getJson(`${BASE}/order?${q}`, headers(), 10_000)) as SwapOrder;
   }
 
   async canBuyAndSell(mint: string, solLamports = 5_000_000n): Promise<{buy:boolean;sell:boolean;quality:number;buyOutRaw?:bigint}> {
@@ -52,7 +54,7 @@ export class Jupiter {
     const order = await this.order(inputMint, outputMint, amountRaw, true);
     if (!order.transaction) throw new Error(`No executable Jupiter transaction: ${order.errorCode ?? "?"} ${order.errorMessage ?? ""}`);
     const signedTransaction = this.wallet.signBase64Transaction(order.transaction);
-    const result = await postJson(`${BASE}/execute`, { signedTransaction, requestId: order.requestId }, headers(), 25_000);
+    const result = await this.queue.schedule(() => postJson(`${BASE}/execute`, { signedTransaction, requestId: order.requestId }, headers(), 25_000));
     if (result.status !== "Success" || Number(result.code) !== 0) throw new Error(`Jupiter execute failed: ${JSON.stringify(result)}`);
     return {
       signature: result.signature,

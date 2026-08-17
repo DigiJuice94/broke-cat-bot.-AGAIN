@@ -1,4 +1,4 @@
-# Broke Cat Bot v2.0 — Axiom-Style Discovery
+# Broke Cat Bot v2.0.1 — Axiom-Style Discovery
 
 **Primary change:** popular-runner discovery now starts with Mobula Pulse HTTP configured to mimic an Axiom-style Solana trending view. DEX Screener is demoted to enrichment/fallback, while Birdeye still provides its trending/new-listing and deep finalist data.
 
@@ -101,3 +101,13 @@ When freshly collected market data pushes a token across the configured BUY_SCOR
 
 ## v1.4.2
 - CURRENT TRADE / HOLDING logs now include the exact Solana contract address (`CA:<mint>`).
+
+
+## v2.0.1 SOL/USD execution fix
+- SOL/USD is refreshed in the background before a trade is ready.
+- Primary source: Coinbase public exchange rates (no key).
+- Fallback: DEX Screener.
+- Jupiter is emergency-only for SOL/USD, preserving Jupiter capacity for route/execution calls.
+- A recent cached SOL/USD value can be used for up to `SOL_USD_STALE_MS` when all live sources briefly fail.
+
+- Jupiter requests are now serialized with 429 backoff (`JUPITER_MIN_INTERVAL_MS`, default 500ms).
