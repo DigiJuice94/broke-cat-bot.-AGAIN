@@ -1,4 +1,4 @@
-# Broke Cat Bot v2.2.2 — Fast Runner / Meta Intelligence
+# Broke Cat Bot v2.3.0 — Profit Runner / Fee Guard / Moon Bag
 
 **Primary change:** exits no longer trust chart/DEX price alone. Every LIVE position is valued using a full-position Jupiter token→SOL quote, and that executable value drives profit-taking, stop-losses, trailing protection, and rug/liquidity-collapse detection.
 
@@ -182,3 +182,38 @@ This keeps the Meta Runner system available when X is usable without making X a 
 - Jupiter buy route passes and, when `REQUIRE_SELL_ROUTE=true`, the immediate sell route passes
 
 A successful bypass prints `[FAST ENTRY] ... bypass DEVELOPING` so it is obvious in Railway logs why the bot entered early. Borderline candidates still use the normal observation window.
+
+---
+
+## v2.3.0 Profit Runner update
+
+This build keeps v2.2.2 discovery/scoring and changes trade management around the observed small-wallet problem: frequent small round trips were allowing execution costs and losses to overwhelm winning trades.
+
+### Entry / churn changes
+- 🔥 score 90+ is an automatic early-runner lane once Jupiter confirms both buy and sell routes.
+- 60-second post-exit cooldown for normal candidates; flames may bypass the cooldown.
+- Fee-aware entry gate uses Jupiter round-trip route quality. Default minimum route quality is 88% and expected edge must remain large enough after estimated route drag.
+- Position sizing is intentionally meaningful but capped for the planned ~$100 test wallet: target $10-$15 (environment configurable).
+
+### Loss control
+- Early-failure exit: about -5% during the first 90 seconds if the momentum thesis has already failed.
+- Soft momentum stop: -8% when momentum is weak.
+- Hard stop: -10% on executable Jupiter value.
+- Liquidity-collapse and fast executable-value-drop exits remain active.
+
+### Winner / runner logic
+- Profit protection arms at +15%.
+- If +30% is reached but momentum has faded, the bot can bank the trade.
+- Strong runner at +40%: sell 30% of the position.
+- Strong runner at +75%: sell another 50% of the ORIGINAL position.
+- Leave the final 20% as a moon bag.
+- Moon bag target: +200%; it can exit earlier on major giveback/liquidity failure instead of blindly holding.
+- Time exit only fires when momentum is weak, so active runners are not killed just because the clock expired.
+
+### Wallet / P&L integrity
+- Positions are persisted to `broke-cat-live-state.json`.
+- Startup wallet reconciliation restores tracked positions and can recover orphan wallet tokens (use a dedicated bot wallet if `RECOVER_UNKNOWN_WALLET_TOKENS=true`).
+- A failed sell never deletes the position.
+- Partial sells update the remaining cost basis instead of pretending the whole trade is closed.
+- Buy and sell transaction fees are read from Solana transaction metadata when available.
+- Sell logs show gross proceeds, transaction fee, net proceeds, tranche P/L, and cumulative realized dollars.

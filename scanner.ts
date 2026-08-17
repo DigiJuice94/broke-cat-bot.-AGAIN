@@ -219,13 +219,28 @@ export class Scanner {
         && socialOK
         && routesOK;
 
+      const flameEntry=c.score>=config.flameAutoBuyScore
+        && c.dataConfidence>=config.flameMinDataConfidence
+        && routesOK;
+
       const normalEntry=age>=config.minObservationMs
         && c.score>=config.buyScore
         && c.dataConfidence>=config.minDataConfidence
         && socialOK
         && routesOK;
 
-      if(fastEntry){
+      // 🔥 means exactly what the log says now: an automatic early-runner buy lane.
+      // It bypasses DEVELOPING/social waiting, but it still requires executable Jupiter
+      // buy + sell routes so the bot does not knowingly enter a token it cannot exit.
+      if(flameEntry){
+        c.state="READY";
+        c.decisionReason=`🔥 FLAME AUTO BUY | score ${Math.round(c.score)} | data ${Math.round(c.dataConfidence)}% | early-runner bypass`;
+        log.info(`[🔥 FLAME AUTO BUY] ${c.token.name} ($${c.token.symbol}) | Score:${Math.round(c.score)}/100 Data:${Math.round(c.dataConfidence)}% | B/S:${buySellRatio.toFixed(1)}x Vol:$${Math.round(volume1m)} | BuyRoute:Y SellRoute:Y`);
+      } else if(c.score>=config.flameAutoBuyScore && !routesOK){
+        c.state="DEVELOPING";
+        c.decisionReason=`🔥 FLAME BUY BLOCKED: ${!snap.buyRoute?"buy route unavailable":"sell route unavailable"}`;
+        log.warn(`[🔥 FLAME BUY BLOCKED] ${c.token.name} ($${c.token.symbol}) | Score:${Math.round(c.score)} | ${c.decisionReason}`);
+      } else if(fastEntry){
         c.state="READY";
         c.decisionReason=`FAST ENTRY: bypassed DEVELOPING | score ${Math.round(c.score)} | data ${Math.round(c.dataConfidence)}% | B/S ${buySellRatio.toFixed(1)}x | vol $${Math.round(volume1m)} | sources ${sourceCount}`;
         log.info(`[FAST ENTRY] ${c.token.name} ($${c.token.symbol}) | bypass DEVELOPING | Score:${Math.round(c.score)} Data:${Math.round(c.dataConfidence)}% B/S:${buySellRatio.toFixed(1)}x Vol:$${Math.round(volume1m)} Sources:${sourceCount} | BuyRoute:Y SellRoute:${snap.sellRoute?"Y":"-"}`);

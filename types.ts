@@ -94,7 +94,14 @@ export interface Position {
   paper?: boolean;
   socialAccountsAtBuy?: string[];
   metaRunnerAtBuy?: boolean;
+  originalEntryUsd?: number;
+  realizedProceedsUsd?: number;
+  realizedCostBasisUsd?: number;
+  buyTxFeeUsd?: number;
+  runnerProfitStage?: 0 | 1 | 2;
+  recoveredFromWallet?: boolean;
 }
+
 
 export interface SwapOrder {
   transaction: string | null;
