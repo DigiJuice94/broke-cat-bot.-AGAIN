@@ -61,10 +61,28 @@ export function scoreCandidate(c: Candidate): {score:number;confidence:number;re
   // Risk deductions.
   if (s.top10HolderPct != null) score -= clamp((s.top10HolderPct-25)*0.35,0,18);
   if (s.bundleRisk != null) score -= clamp((s.bundleRisk-20)*0.30,0,24);
-  score = clamp(score);
+  const marketScore = clamp(score);
 
-  let reason="collecting momentum data";
+  // Safety is intentionally compact: route quality + concentration/bundle + smart-money cohort risk.
+  let safetyScore = 55;
+  if (s.sellRoute) safetyScore += 15; else safetyScore -= 25;
+  if (s.routeQuality != null) safetyScore += clamp((s.routeQuality-50)*0.25,-12,12);
+  if (s.top10HolderPct != null) safetyScore -= clamp((s.top10HolderPct-25)*0.45,0,22);
+  if (s.bundleRisk != null) safetyScore -= clamp((s.bundleRisk-20)*0.40,0,28);
+  if (s.smartMoney?.checked) {
+    safetyScore += clamp(s.smartMoney.smartTraders*5,0,15);
+    safetyScore -= clamp(s.smartMoney.insiders*8+s.smartMoney.bundlers*5+s.smartMoney.devs*8,0,30);
+  }
+  safetyScore=clamp(safetyScore);
+  const socialScore=s.social?.enabled?s.social.score:0;
+  // When X is configured, use the planned 40/40/20 blend. Without X, preserve market behavior so the bot still runs.
+  score = s.social?.enabled ? clamp(marketScore*.40 + socialScore*.40 + safetyScore*.20) : clamp(marketScore*.80+safetyScore*.20);
+  c.marketScore=marketScore;c.socialScore=socialScore;c.safetyScore=safetyScore;
+  c.metaRunner=Boolean(s.social?.enabled && socialScore>=60 && marketScore>=65 && (s.social.metaMatch||s.social.keyAccounts.length>=2||s.social.pumpFun));
+
+  let reason=c.metaRunner?`META RUNNER | social ${socialScore.toFixed(0)} + market ${marketScore.toFixed(0)}`:"collecting momentum data";
   if (s.priceUsd == null) reason="market data incomplete";
+  else if (c.metaRunner) reason=`META RUNNER | social ${socialScore.toFixed(0)} + market ${marketScore.toFixed(0)}`;
   else if (buyAccel>=40 && buys>=5) reason=`buyers accelerating +${buyAccel.toFixed(0)}%`;
   else if (volAccel>=40) reason=`volume accelerating +${volAccel.toFixed(0)}%`;
   else if (ratio>=2) reason=`buy pressure ${ratio.toFixed(1)}x`;

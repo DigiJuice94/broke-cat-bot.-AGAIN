@@ -1,6 +1,6 @@
 {
-  "name": "broke-cat-bot-v2-1-exit-protection",
-  "version": "2.1.0",
+  "name": "broke-cat-bot-v2-2-meta-runner",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "scripts": {

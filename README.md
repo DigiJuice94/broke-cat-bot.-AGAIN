@@ -139,3 +139,18 @@ When freshly collected market data pushes a token across the configured BUY_SCOR
 - A recent cached SOL/USD value can be used for up to `SOL_USD_STALE_MS` when all live sources briefly fail.
 
 - Jupiter requests are now serialized with 429 backoff (`JUPITER_MIN_INTERVAL_MS`, default 500ms).
+
+## v2.2.0 — Meta Runner Intelligence
+
+Broke Cat now combines four compact layers instead of buying random movement:
+
+- **SOCIAL** — official X API watchlist for Ansem, sling, Cobie, CZ, PoorGoat and Pump.fun; detects direct token mentions, callout contract addresses, account overlap and live dominant META terms.
+- **SMART MONEY** — Birdeye Top Traders enrichment on finalists using Solana wallet tags such as `smart_trader`, `sniper`, `insider`, `bundler`, and `dev`.
+- **MARKET** — existing Birdeye/DEX/Mobula momentum remains the market backbone.
+- **SAFETY** — sell route, route quality, holder concentration, bundle risk and suspicious trader cohorts.
+
+When `X_BEARER_TOKEN` is configured, the final score is approximately **40% market + 40% social/narrative + 20% safety**. Strong cross-confirmed candidates are logged as **🟣 META RUNNER**. Pump.fun callouts are high-priority discovery signals, but they never bypass market/safety confirmation.
+
+The exit system is now adaptive: a weak loser can exit around the soft-stop level while a temporary shakeout with strong buy pressure can survive until the hard stop. Full-position Jupiter executable-value protection remains the source of truth for live exits.
+
+Closed trades are re-checked at **5m / 15m / 30m / 60m** after exit and logged as early-exit/good-stop follow-up data so future tuning can use actual outcomes.

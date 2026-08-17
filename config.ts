@@ -96,6 +96,22 @@ export const config = {
   bundleApiUrl: process.env.BUNDLE_API_URL ?? "",
   bundleApiKey: process.env.BUNDLE_API_KEY ?? "",
   requireSellRoute: bool("REQUIRE_SELL_ROUTE", true),
+
+  // v2.2 Social / Meta awareness
+  xBearerToken: process.env.X_BEARER_TOKEN ?? "",
+  socialPollMs: num("SOCIAL_POLL_MS", 60_000),
+  socialTimeoutMs: num("SOCIAL_TIMEOUT_MS", 8_000),
+  socialLookbackMin: num("SOCIAL_LOOKBACK_MIN", 60),
+  socialMinBuyScore: num("SOCIAL_MIN_BUY_SCORE", 35),
+  socialRequireWhenEnabled: bool("SOCIAL_REQUIRE_WHEN_ENABLED", true),
+  metaRunnerSocialScore: num("META_RUNNER_SOCIAL_SCORE", 60),
+  metaTopTerms: num("META_TOP_TERMS", 8),
+  smartMoneyCandidates: num("SMART_MONEY_CANDIDATES", 2),
+  smartMoneyMinScore: num("SMART_MONEY_MIN_SCORE", 65),
+  softStopLossPct: num("SOFT_STOP_LOSS_PCT", 8),
+  hardStopLossPct: num("HARD_STOP_LOSS_PCT", 12),
+  strongMomentumBuySellRatio: num("STRONG_MOMENTUM_BUY_SELL_RATIO", 1.5),
+  strongMomentumMinPrice5mPct: num("STRONG_MOMENTUM_MIN_PRICE_5M_PCT", -3),
 };
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";

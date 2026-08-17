@@ -1,5 +1,5 @@
 import { config, SOL_MINT } from "./config.ts";
-import { DiscoveredToken, Snapshot } from "./types.ts";
+import { DiscoveredToken, Snapshot, SmartMoneySnapshot } from "./types.ts";
 import { getJson } from "./http.ts";
 import { RequestQueue } from "./requestQueue.ts";
 
@@ -158,6 +158,20 @@ export class Birdeye {
       this.holderCache.set(address,{at:Date.now(),value});
       return value;
     } catch { return {}; }
+  }
+
+  async topTraderIntel(address:string): Promise<SmartMoneySnapshot> {
+    const empty:SmartMoneySnapshot={checked:false,smartTraders:0,snipers:0,insiders:0,bundlers:0,devs:0,score:0};
+    if(!config.birdeyeApiKey || !this.isCuAvailable() || !this.canSpend(35)) return empty;
+    try {
+      const q=new URLSearchParams({address,time_frame:"24h",sort_type:"desc",sort_by:"volume",offset:"0",limit:"10",wallet_tags:"smart_trader,sniper,insider,bundler,dev"});
+      const j:any=await this.get(`${BASE}/defi/v2/tokens/top_traders?${q}`,9_000,35);
+      const rows=arr(j?.data??j); let smart=0,sniper=0,insider=0,bundler=0,dev=0;
+      for(const x of rows){const raw=x.walletTags??x.wallet_tags??x.tags??[];const tags=(Array.isArray(raw)?raw:String(raw).split(",")).map((z:any)=>String(z).toLowerCase());
+        if(tags.some((z:string)=>z.includes("smart_trader")||z==="smart"))smart++;if(tags.some((z:string)=>z.includes("sniper")))sniper++;if(tags.some((z:string)=>z.includes("insider")))insider++;if(tags.some((z:string)=>z.includes("bundler")))bundler++;if(tags.some((z:string)=>z==="dev"||z.includes("developer")))dev++;}
+      const score=Math.max(0,Math.min(100,smart*18+Math.min(20,rows.length*2)-sniper*6-insider*12-bundler*8-dev*10));
+      return {checked:true,smartTraders:smart,snipers:sniper,insiders:insider,bundlers:bundler,devs:dev,score};
+    } catch { return empty; }
   }
 
   async solPriceUsd(): Promise<number> {

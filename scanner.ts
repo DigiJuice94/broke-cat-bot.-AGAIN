@@ -8,6 +8,8 @@ import { log } from "./log.ts";
 import { scoreCandidate } from "./scoring.ts";
 import { DexScreener } from "./dexscreener.ts";
 import { MobulaAxiomDiscovery } from "./mobula.ts";
+import { SocialIntel } from "./social.ts";
+import { SmartMoneyIntel } from "./smartMoney.ts";
 
 export class Scanner {
   readonly candidates = new Map<string, Candidate>();
@@ -18,7 +20,9 @@ export class Scanner {
   private lastBirdeyeMeme = 0;
   private dex = new DexScreener();
   private mobula = new MobulaAxiomDiscovery();
-  constructor(private birdeye: Birdeye, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) {}
+  private social = new SocialIntel();
+  private smartMoney: SmartMoneyIntel;
+  constructor(private birdeye: Birdeye, private jupiter: Jupiter, private onReady: (c: Candidate) => Promise<void>) { this.smartMoney=new SmartMoneyIntel(birdeye); }
 
   private activeCount() {
     return [...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state)).length;
@@ -89,6 +93,8 @@ export class Scanner {
   }
 
   private async discover() {
+    await this.social.poll();
+    for(const t of this.social.discoveredTokens()) this.add(t);
     const now=Date.now();
     // PRIMARY trending lane: Mobula Pulse recreates Axiom-style discovery with ranked Solana tokens.
     // It is intentionally queried before DEX/new-token fallbacks so popular runners get scanner capacity first.
@@ -120,7 +126,7 @@ export class Scanner {
     this.pruneKnown();
     const active=this.activeCount();
     const poolState=active<config.minActiveCandidates?"REFILLING":"HEALTHY";
-    const trending=[...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state) && (["fomo","axiom","mobula-axiom-volume","mobula-axiom-price","birdeye-trending","dex-momentum"] as const).some(x=>c.sources.has(x))).length;
+    const trending=[...this.candidates.values()].filter(c=>!["DROPPED","BOUGHT","FAILED"].includes(c.state) && (["fomo","axiom","mobula-axiom-volume","mobula-axiom-price","birdeye-trending","dex-momentum","social-watchlist"] as const).some(x=>c.sources.has(x))).length;
     const early=Math.max(0,active-trending);
     log.info(`[DISCOVERY] active=${active} 🔥trending=${trending} 🐣early=${early} target≥${config.minActiveCandidates} total-known=${this.candidates.size} pool:${poolState} | AXIOM-STYLE:${this.mobula.enabled()?"Mobula:on":"off"} DEX:on Birdeye:${this.birdeye.isCuAvailable()?"available":"CU cooldown"} | ${this.birdeye.budgetText()}`);
   }
@@ -132,7 +138,7 @@ export class Scanner {
     // Trending lane always gets first shot at scanner/deep-check capacity.
     const axiomStyle=(c.sources.has("mobula-axiom-volume")||c.sources.has("mobula-axiom-price"))?12:0;
     const bestClimb=Math.max(0,...Object.values(c.rankMovement??{}).map(Number));
-    return axiomStyle+(c.sources.has("fomo")?10:0)+(c.sources.has("axiom")?10:0)+(c.sources.has("birdeye-trending")?7:0)+(c.sources.has("dex-momentum")?5:0)+(c.sources.has("birdeye-new")?2:0)+(c.sources.has("dex-profile")?0.5:0)+(c.sources.has("dex-boost-top")?0.25:0)+(c.sources.has("dex-boost")?0:0)+Math.min(4,bestClimb*0.5)+c.score/100;
+    return axiomStyle+(c.sources.has("fomo")?10:0)+(c.sources.has("axiom")?10:0)+(c.sources.has("birdeye-trending")?7:0)+(c.sources.has("dex-momentum")?5:0)+(c.sources.has("social-watchlist")?14:0)+(c.sources.has("birdeye-new")?2:0)+(c.sources.has("dex-profile")?0.5:0)+(c.sources.has("dex-boost-top")?0.25:0)+(c.sources.has("dex-boost")?0:0)+Math.min(4,bestClimb*0.5)+c.score/100;
   }
 
   private async collect(c:Candidate,index:number) {
@@ -151,9 +157,12 @@ export class Scanner {
       const bundlePromise=doBundle?bundleRisk(c.token.address):Promise.resolve({risk:undefined,status:"unknown" as const});
       const routePromise=doRoute?this.jupiter.canBuyAndSell(c.token.address):Promise.resolve({buy:false,sell:false,quality:undefined});
       const holderPromise=doHolder?this.birdeye.holderStats(c.token.address):Promise.resolve({});
-      const [market,bundle,route,holder]=await Promise.all([marketPromise,bundlePromise,routePromise,holderPromise]);
+      const doSmart=index<config.smartMoneyCandidates && c.score>=config.smartMoneyMinScore;
+      const smartPromise=doSmart?this.smartMoney.inspect(c.token.address):Promise.resolve({checked:false,smartTraders:0,snipers:0,insiders:0,bundlers:0,devs:0,score:0});
+      const social=this.social.scoreToken(c.token.name,c.token.symbol);
+      const [market,bundle,route,holder,smartMoney]=await Promise.all([marketPromise,bundlePromise,routePromise,holderPromise,smartPromise]);
 
-      const snap:Snapshot={at:Date.now(),...market,...holder,
+      const snap:Snapshot={at:Date.now(),...market,...holder, social, smartMoney,
         bundleRisk:bundle.risk,bundleStatus:doBundle?(bundle.status==="ok"?"ok":bundle.status==="error"?"error":"unknown"):"skipped",
         buyRoute:route.buy,sellRoute:route.sell,routeQuality:route.quality};
       c.snapshots.push(snap); if(c.snapshots.length>12)c.snapshots.shift();
@@ -188,7 +197,8 @@ export class Scanner {
         scored=scoreCandidate(c); c.score=scored.score;c.dataConfidence=scored.confidence;c.decisionReason=scored.reason;
       }
 
-      if(age>=config.minObservationMs&&c.score>=config.buyScore&&c.dataConfidence>=config.minDataConfidence&&snap.buyRoute&&(!config.requireSellRoute||snap.sellRoute))c.state="READY";
+      const socialOK=!snap.social?.enabled||!config.socialRequireWhenEnabled||snap.social.score>=config.socialMinBuyScore;
+      if(age>=config.minObservationMs&&c.score>=config.buyScore&&c.dataConfidence>=config.minDataConfidence&&socialOK&&snap.buyRoute&&(!config.requireSellRoute||snap.sellRoute))c.state="READY";
       else if(age>=config.maxObservationMs){c.state="DROPPED";c.lastDroppedAt=Date.now();c.decisionReason=`NO BUY: observation ended at score ${Math.round(c.score)} / data ${Math.round(c.dataConfidence)}%`;}
       else if(c.score>=config.promoteScore)c.state="DEVELOPING"; else c.state="WATCHING";
 
@@ -197,7 +207,7 @@ export class Scanner {
         status:c.state==="READY"?"✅ READY":c.state==="DROPPED"?"❌ NO BUY":`⏳ ${c.state}`,reason:c.decisionReason,sources:[...c.sources],rankText:this.rankText(c),
         details:{buys1m:snap.buys1m,sells1m:snap.sells1m,buys5m:snap.buys5m,sells5m:snap.sells5m,volume1mUsd:snap.volume1mUsd,volume5mUsd:snap.volume5mUsd,
           liquidityUsd:snap.liquidityUsd,holderCount:snap.holderCount,uniqueWallet1m:snap.uniqueWallet1m,
-          top10HolderPct:snap.top10HolderPct,deep:`BE:${finalBirdeye?"Y":"-"} H:${finalHolder?"Y":"-"} B:${finalBundle?"Y":"-"} R:${finalRoute?"Y":"-"}`}});
+          top10HolderPct:snap.top10HolderPct,socialScore:snap.social?.score,socialAccounts:snap.social?.keyAccounts?.join(","),meta:snap.social?.dominantMeta?.slice(0,3).join("/"),smart:snap.smartMoney?.checked?`S:${snap.smartMoney.smartTraders} Sn:${snap.smartMoney.snipers} In:${snap.smartMoney.insiders} B:${snap.smartMoney.bundlers}`:undefined,metaRunner:c.metaRunner,deep:`BE:${finalBirdeye?"Y":"-"} H:${finalHolder?"Y":"-"} B:${finalBundle?"Y":"-"} R:${finalRoute?"Y":"-"}`}});
       if(c.state==="READY")await this.onReady(c);
     }catch(e){log.warn(`[SCAN ERROR] ${c.token.name} ${c.token.address}: ${e instanceof Error?e.message:String(e)}`);}finally{c.collecting=false;}
   }

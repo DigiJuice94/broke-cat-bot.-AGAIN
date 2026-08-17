@@ -1,4 +1,4 @@
-export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "dex-profile" | "dex-boost" | "dex-boost-top" | "dex-momentum" | "mobula-axiom-volume" | "mobula-axiom-price" | "axiom" | "fomo";
+export type FeedSource = "birdeye-new" | "birdeye-trending" | "birdeye-meme" | "dex-profile" | "dex-boost" | "dex-boost-top" | "dex-momentum" | "mobula-axiom-volume" | "mobula-axiom-price" | "axiom" | "fomo" | "social-watchlist";
 
 export interface DiscoveredToken {
   address: string;
@@ -10,6 +10,13 @@ export interface DiscoveredToken {
   discoveredAt: number;
   listedAt?: number;
   seed?: Partial<Snapshot>;
+}
+
+export interface SocialIntelSnapshot {
+  enabled:boolean; score:number; mentions:number; weightedMentions:number; keyAccounts:string[]; pumpFun:boolean; metaMatch:boolean; dominantMeta:string[];
+}
+export interface SmartMoneySnapshot {
+  checked:boolean; smartTraders:number; snipers:number; insiders:number; bundlers:number; devs:number; score:number;
 }
 
 export interface Snapshot {
@@ -38,6 +45,8 @@ export interface Snapshot {
   routeQuality?: number;
   dexPairAddress?: string;
   dexId?: string;
+  social?: SocialIntelSnapshot;
+  smartMoney?: SmartMoneySnapshot;
   dataErrors?: string[];
 }
 
@@ -54,6 +63,10 @@ export interface Candidate {
   dataConfidence: number;
   state: "WATCHING" | "DEVELOPING" | "READY" | "BOUGHT" | "DROPPED" | "FAILED";
   decisionReason?: string;
+  marketScore?: number;
+  socialScore?: number;
+  safetyScore?: number;
+  metaRunner?: boolean;
   collecting: boolean;
   lastDroppedAt?: number;
   watchCycles?: number;
@@ -79,6 +92,8 @@ export interface Position {
   scoreAtBuy?: number;
   confidenceAtBuy?: number;
   paper?: boolean;
+  socialAccountsAtBuy?: string[];
+  metaRunnerAtBuy?: boolean;
 }
 
 export interface SwapOrder {
